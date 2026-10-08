@@ -11,6 +11,7 @@ import {
   CHAPTERS,
   CONFIG,
   FAIR,
+  DECO_BONUS,
   SELLABLE,
   xpForLevel,
   levelReward,
@@ -27,7 +28,7 @@ import { sdk } from '../sdk';
 import { audio } from '../audio';
 import { Stage } from '../render/stage';
 import { buildWorld, type World, type Collider } from '../render/world';
-import { buildArrow, buildBin, buildFair, skinHumanOpts } from '../render/models';
+import { buildArrow, buildBin, buildFair, buildDeco, skinHumanOpts } from '../render/models';
 import { renderPortraits, NPC } from '../render/portraits';
 import { Labels, type Label } from './labels';
 import { Effects } from './effects';
@@ -99,10 +100,13 @@ export class Game {
   private maxLabel: Label;
   private binPos = new THREE.Vector3(CONFIG.bin.x, 0, CONFIG.bin.z);
   private fairSpins: { o: THREE.Object3D; axis: 'y' | 'z'; speed: number }[] = [];
+  private decoAnims: ((t: number) => void)[] = [];
+  private decoColliders: Collider[] = [];
   private hintActive = false;
   private moveAcc = 0;
   private boostBtns!: { income: HTMLButtonElement; speed: HTMLButtonElement; gift: HTMLButtonElement };
   private shownCoins = -1;
+  private completingQuest = false;
   private sessionStart = performance.now();
   private lastFrame = performance.now();
 
@@ -252,6 +256,7 @@ export class Game {
     for (const sh of this.shelves.values()) if (sh.active) c.push(sh.collider);
     c.push({ x1: this.binPos.x - 0.45, z1: this.binPos.z - 0.45, x2: this.binPos.x + 0.45, z2: this.binPos.z + 0.45 });
     if (this.unlocked.has('fair')) c.push({ x1: FAIR.x - 4.4, z1: FAIR.z - 3.4, x2: FAIR.x + 4.6, z2: FAIR.z + 3.2 });
+    c.push(...this.decoColliders);
     this.colliders = c;
   }
 
@@ -273,6 +278,8 @@ export class Game {
       }
       case 'fair':
         return t('fair');
+      case 'deco':
+        return t('deco_' + u.target);
     }
   }
 
@@ -298,6 +305,14 @@ export class Game {
       fair.mesh.position.set(FAIR.x, 0, FAIR.z);
       this.stage.scene.add(fair.mesh);
       this.fairSpins = fair.spins;
+    }
+    if (u.kind === 'deco') {
+      const d = buildDeco(u.target);
+      d.mesh.position.set(u.x, 0, u.z);
+      this.stage.scene.add(d.mesh);
+      if (d.animate) this.decoAnims.push(d.animate);
+      this.decoColliders.push({ x1: u.x - d.radius, z1: u.z - d.radius, x2: u.x + d.radius, z2: u.z + d.radius });
+      if (!instant) this.ui.toast(`⭐ +${Math.round(DECO_BONUS * 100)}% 🪙`, 'big');
     }
     this.pads.get(u.id)?.hide();
     if (!instant) {
@@ -379,7 +394,8 @@ export class Game {
     return CONFIG.baseSpeed * (1 + CONFIG.speedPerLvl * (this.s.up.speed || 0)) * (this.s.boosts.speed > 0 ? 1.5 : 1);
   }
   basePriceMult() {
-    return (1 + CONFIG.pricePerLvl * (this.s.up.price || 0)) * (this.unlocked.has('fair') ? 1 + FAIR.priceBonus : 1);
+    const decos = UNLOCKS.filter((u) => u.kind === 'deco' && this.unlocked.has(u.id)).length;
+    return (1 + CONFIG.pricePerLvl * (this.s.up.price || 0)) * (this.unlocked.has('fair') ? 1 + FAIR.priceBonus : 1) * (1 + DECO_BONUS * decos);
   }
   priceMult() {
     return this.basePriceMult() * (this.s.boosts.income > 0 ? 2 : 1);
@@ -625,15 +641,12 @@ export class Game {
   }
 
   private completeQuest() {
+    if (this.completingQuest) return;
+    this.completingQuest = true;
     const q = this.currentQuest();
     const s = this.s;
     audio.play('quest');
     this.ui.questFlash();
-    if (q.reward > 0) {
-      this.addCoins(q.reward, { x: 120, y: 120 });
-      this.ui.toast(`✅ +${fmt(q.reward)} 🪙`, 'good');
-    }
-    this.addXP(Math.max(2, Math.round(q.reward / 3)));
     s.qp = 0;
     if (s.ch < CHAPTERS.length) {
       s.q++;
@@ -647,8 +660,15 @@ export class Game {
       s.orders++;
       s.order = this.makeOrder();
     }
+    if (q.reward > 0) {
+      this.addCoins(q.reward, { x: 120, y: 120 });
+      this.ui.toast(`✅ +${fmt(q.reward)} 🪙`, 'good');
+    }
+    this.addXP(Math.max(2, Math.round(q.reward / 3)));
+    this.completingQuest = false;
     this.refreshQuest();
     this.refreshBoostButtons();
+    if (s.qp >= this.currentQuest().n) this.completeQuest();
     this.save();
   }
 
@@ -727,7 +747,7 @@ export class Game {
         return this.guide(q.target as ItemId) || sh.zone;
       }
       case 'unlock': {
-        const pad = this.pads.get(q.target!);
+        const pad = this.pads.get(this.firstMissing(q.target!));
         if (pad && pad.visible) {
           const left = pad.def.cost - pad.paid;
           if (this.s.coins >= Math.min(left, 1)) return new THREE.Vector3(pad.def.x, 0, pad.def.z);
@@ -738,6 +758,14 @@ export class Game {
       default:
         return null;
     }
+  }
+
+  /** First not-yet-unlocked step on the requirement chain leading to `id`. */
+  private firstMissing(id: string, depth = 0): string {
+    const u = UNLOCKS.find((x) => x.id === id);
+    if (!u || depth > 10) return id;
+    for (const r of u.req) if (!this.unlocked.has(r)) return this.firstMissing(r, depth + 1);
+    return id;
   }
 
   private richestShelf(): THREE.Vector3 | null {
@@ -862,6 +890,7 @@ export class Game {
       }
     }
 
+    for (const a of this.decoAnims) a(this.time);
     for (const sp of this.fairSpins) {
       if (sp.axis === 'y') sp.o.rotation.y += dt * sp.speed;
       else sp.o.rotation.z += dt * sp.speed;

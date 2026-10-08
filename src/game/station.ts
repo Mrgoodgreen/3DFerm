@@ -145,6 +145,7 @@ export class Station {
 
   activate() {
     this.active = true;
+    if (!this.def.animal) this.workers = Math.max(this.workers, 1);
     this.group.visible = true;
     this.setLabelsVisible(true);
     this.refreshLabels();

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIELDS, STATIONS, SHELVES, SHELF_Z, CONFIG, FAIR } from '../data';
+import { FIELDS, STATIONS, SHELVES, SHELF_Z, CONFIG, FAIR, UNLOCKS } from '../data';
 import { MB, MAT, box, cyl, sph, cone, ico, rng } from './mb';
 import {
   roundedRectShape,
@@ -275,12 +275,14 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   const insideIsland = (x: number, z: number, m: number) => x > ISLAND.minX + m && x < ISLAND.maxX - m && z > ISLAND.minZ + m && z < ISLAND.maxZ - m;
   const nearHouse = (x: number, z: number) => Math.abs(x - HOUSE.x) < 4.5 && Math.abs(z - HOUSE.z) < 4.5;
   const nearPond = (x: number, z: number) => Math.hypot(x - POND.x, z - POND.z) < POND.r + 1.4;
+  const decoSpots = UNLOCKS.filter((u) => u.kind === 'deco');
+  const nearDeco = (x: number, z: number) => decoSpots.some((u) => Math.hypot(x - u.x, z - u.z) < 3.4);
 
   let placed = 0;
   for (let i = 0; i < 2000 && placed < (mobile ? 110 : 150); i++) {
     const x = ISLAND.minX + r() * IW;
     const z = ISLAND.minZ + r() * ID;
-    if (!insideIsland(x, z, 1.4) || inKeep(x, z, 0.8) || nearHouse(x, z) || nearPond(x, z)) continue;
+    if (!insideIsland(x, z, 1.4) || inKeep(x, z, 0.8) || nearHouse(x, z) || nearPond(x, z) || nearDeco(x, z)) continue;
     const south = z > CONFIG.road.z + 1.8;
     const k = r();
     if (south) {
@@ -297,7 +299,7 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   // Accent trees between production areas
   const accents: [number, number, number][] = [
     [-13.5, -4, 0], [-13.5, -15, 2], [8.2, -15.5, 0], [19.3, -15.8, 1], [-1, -20.5, 0],
-    [-25.5, -9, 1], [29.5, -9.5, 0], [-25.5, 1.5, 0], [29.8, 1, 2], [-2.5, -31.5, 1], [9, -31.5, 0],
+    [-25.5, -9, 1], [-25.5, 1.5, 0], [29.8, 1, 2], [-2.5, -31.5, 1], [9, -31.5, 0],
   ];
   for (const [x, z, v] of accents) addTree(decor, x, z, 0.85, v, r);
 
@@ -380,7 +382,7 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
     const gg = gdata[k + 1];
     const bb = gdata[k + 2];
     if (!(gg > 170 && rr < 180 && bb < 140)) continue;
-    if (nearPond(x, z) || nearHouse(x, z)) continue;
+    if (nearPond(x, z) || nearHouse(x, z) || nearDeco(x, z)) continue;
     if (FIELDS.some((f) => Math.abs(x - f.x) < (f.cols * f.spacing) / 2 + 0.6 && Math.abs(z - f.z) < (f.rows * f.spacing) / 2 + 0.6)) continue;
     if (STATIONS.some((st) => Math.abs(x - st.x) < st.w / 2 + 1 && Math.abs(z - st.z) < st.d / 2 + 2.2)) continue;
     if (SHELVES.some((sh) => Math.abs(x - sh.x) < 2 && Math.abs(z - SHELF_Z) < 3.5)) continue;

@@ -714,10 +714,10 @@ export function buildPallet(w = 1.5, d = 1.2): THREE.Mesh {
 
 export function buildBin(): THREE.Mesh {
   const mb = new MB();
-  mb.add(cyl(0.42, 0.36, 0.85, 12), 0x5aaa4a, { p: [0, 0.43, 0] });
-  mb.add(cyl(0.46, 0.46, 0.1, 12), 0x3f8a35, { p: [0, 0.9, 0] });
-  mb.add(box(0.3, 0.06, 0.08), 0x3f8a35, { p: [0, 0.98, 0] });
-  for (let i = 0; i < 3; i++) mb.add(box(0.05, 0.6, 0.02), 0x8fd27e, { p: [-0.15 + i * 0.15, 0.45, 0.39] });
+  mb.add(cyl(0.42, 0.36, 0.85, 12), 0x8a9bb0, { p: [0, 0.43, 0] });
+  mb.add(cyl(0.46, 0.46, 0.1, 12), 0x5f7085, { p: [0, 0.9, 0] });
+  mb.add(box(0.3, 0.06, 0.08), 0x5f7085, { p: [0, 0.98, 0] });
+  for (let i = 0; i < 3; i++) mb.add(box(0.05, 0.6, 0.02), 0xc4cfdb, { p: [-0.15 + i * 0.15, 0.45, 0.39] });
   return mb.mesh(true, false);
 }
 
@@ -917,6 +917,136 @@ export function buildFair(): { mesh: THREE.Group; spins: { o: THREE.Object3D; ax
   for (const sx of [-4, 4]) deco.add(cyl(0.06, 0.06, 3.2, 6), C.woodD, { p: [sx, 1.6, 3.6] });
   g.add(deco.mesh(true, true));
   return { mesh: g, spins };
+}
+
+export interface DecoModel {
+  mesh: THREE.Group;
+  animate?: (t: number) => void;
+  radius: number;
+}
+
+export function buildDeco(kind: string): DecoModel {
+  const g = new THREE.Group();
+  const mb = new MB();
+  let animate: ((t: number) => void) | undefined;
+  let radius = 1.6;
+  switch (kind) {
+    case 'fountain': {
+      mb.add(cyl(1.7, 1.8, 0.5, 18), C.stone, { p: [0, 0.25, 0] });
+      mb.add(cyl(1.5, 1.5, 0.06, 18), 0x5cc3e8, { p: [0, 0.48, 0] });
+      mb.add(cyl(0.25, 0.32, 1.3, 10), C.stone, { p: [0, 1.0, 0] });
+      mb.add(cyl(0.75, 0.4, 0.25, 14), C.stone, { p: [0, 1.7, 0] });
+      mb.add(cyl(0.65, 0.65, 0.05, 14), 0x7fd6ee, { p: [0, 1.82, 0] });
+      mb.add(sph(0.18, 10, 8), 0x9be7ff, { p: [0, 2.05, 0] });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        addFlower(mb, Math.cos(a) * 2.1, Math.sin(a) * 2.1, [0xff6b9a, 0xffd166, 0xffffff, 0x9b5de5][i % 4]);
+      }
+      const drops = new MB();
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        drops.add(sph(0.07, 6, 4), 0xbff0ff, { p: [Math.cos(a) * 0.7, 1.4, Math.sin(a) * 0.7] });
+      }
+      const dm = drops.mesh(false);
+      g.add(dm);
+      animate = (t) => {
+        dm.position.y = -((t * 1.4) % 1) * 0.8;
+        dm.scale.setScalar(1 + ((t * 1.4) % 1) * 0.6);
+      };
+      radius = 1.9;
+      break;
+    }
+    case 'gazebo': {
+      mb.add(cyl(1.7, 1.8, 0.25, 6), C.woodL, { p: [0, 0.12, 0] });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        mb.add(cyl(0.08, 0.08, 2.0, 6), C.white, { p: [Math.cos(a) * 1.5, 1.2, Math.sin(a) * 1.5] });
+      }
+      mb.add(cone(2.1, 1.2, 6), 0x6ab04c, { p: [0, 2.8, 0] });
+      mb.add(sph(0.15, 8, 6), C.gold, { p: [0, 3.45, 0] });
+      mb.add(box(1.6, 0.1, 0.45), C.wood, { p: [0, 0.6, -0.6] });
+      mb.add(box(1.6, 0.5, 0.08), C.wood, { p: [0, 0.85, -0.82] });
+      mb.add(cyl(0.35, 0.35, 0.05, 12), C.woodD, { p: [0, 0.75, 0.4] });
+      mb.add(cyl(0.05, 0.05, 0.5, 6), C.woodD, { p: [0, 0.5, 0.4] });
+      mb.add(sph(0.12, 8, 6), 0xff6b9a, { p: [0, 0.85, 0.4] });
+      radius = 1.8;
+      break;
+    }
+    case 'statue': {
+      mb.add(box(2.0, 0.9, 1.4), C.stone, { p: [0, 0.45, 0] });
+      mb.add(box(2.2, 0.15, 1.6), C.stoneD, { p: [0, 0.95, 0] });
+      const cow = buildCow();
+      const gold = new THREE.MeshLambertMaterial({ color: 0xffc531, emissive: 0x3a2600 });
+      cow.root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) {
+          (o as THREE.Mesh).material = gold;
+          o.castShadow = true;
+        }
+      });
+      cow.root.position.y = 1.0;
+      cow.root.rotation.y = 0.5;
+      cow.root.scale.setScalar(1.25);
+      g.add(cow.root);
+      animate = (t) => {
+        gold.emissive.setRGB(0.23 + Math.sin(t * 2) * 0.08, 0.15 + Math.sin(t * 2) * 0.05, 0);
+      };
+      radius = 1.4;
+      break;
+    }
+    case 'balloon': {
+      mb.add(cyl(1.0, 1.0, 0.12, 12), C.woodD, { p: [0, 0.06, 0] });
+      const b = new MB();
+      b.add(box(0.8, 0.6, 0.8), 0xc98d4a, { p: [0, 0.3, 0] });
+      for (const [x, z] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]]) b.add(cyl(0.015, 0.015, 1.2, 4), 0x6b4a2f, { p: [x, 1.2, z] });
+      const cols = [0xff6b6b, 0xffd166, 0x4aa8e8, 0x8bd36b, 0xff9ec7, 0xffffff];
+      for (let i = 0; i < 12; i++) {
+        const seg = (Math.PI * 2) / 12;
+        b.add(new THREE.SphereGeometry(1.25, 2, 12, i * seg, seg), cols[i % cols.length], { p: [0, 2.9, 0], s: [1, 1.15, 1] });
+      }
+      b.add(cyl(0.35, 0.2, 0.3, 10), 0xc98d4a, { p: [0, 1.75, 0] });
+      const bm = b.mesh();
+      g.add(bm);
+      animate = (t) => {
+        bm.position.y = 0.6 + Math.sin(t * 0.8) * 0.35;
+        bm.rotation.y = Math.sin(t * 0.3) * 0.3;
+      };
+      radius = 1.1;
+      break;
+    }
+    case 'arch': {
+      mb.add(torus(1.4, 0.12, 6, 16, Math.PI), 0x4f9a3a, { p: [0, 0.05, 0] });
+      for (const sx of [-1.4, 1.4]) mb.add(cyl(0.12, 0.12, 0.2, 6), 0x4f9a3a, { p: [sx, 0.05, 0] });
+      const cols = [0xff6b9a, 0xffd166, 0xffffff, 0xff8c42, 0xc8a2ff];
+      for (let i = 0; i <= 14; i++) {
+        const a = (i / 14) * Math.PI;
+        mb.add(sph(0.16, 8, 6), cols[i % cols.length], { p: [Math.cos(a) * 1.4, Math.sin(a) * 1.4 + 0.05, (i % 2) * 0.12 - 0.06] });
+      }
+      for (let i = 0; i < 10; i++) addFlower(mb, -1.6 + (i % 5) * 0.8, i < 5 ? 0.8 : -0.8, cols[i % cols.length]);
+      radius = 1.5;
+      break;
+    }
+    case 'lighthouse': {
+      mb.add(cyl(1.4, 1.6, 0.4, 14), C.stone, { p: [0, 0.2, 0] });
+      for (let i = 0; i < 5; i++) mb.add(cyl(0.9 - i * 0.09, 0.98 - i * 0.09, 0.9, 14), i % 2 ? 0xffffff : 0xd62839, { p: [0, 0.85 + i * 0.9, 0] });
+      mb.add(cyl(0.75, 0.75, 0.1, 14), 0x333333, { p: [0, 5.0, 0] });
+      mb.add(cyl(0.45, 0.45, 0.7, 10), 0xfff3b0, { p: [0, 5.4, 0] });
+      mb.add(cone(0.6, 0.6, 10), 0xd62839, { p: [0, 6.05, 0] });
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(0.5, 5, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0.35, depthWrite: false }));
+      beam.rotation.z = Math.PI / 2;
+      beam.position.x = 2.6;
+      const pivot = new THREE.Group();
+      pivot.position.y = 5.4;
+      pivot.add(beam);
+      g.add(pivot);
+      animate = (t) => {
+        pivot.rotation.y = t * 0.9;
+      };
+      radius = 1.5;
+      break;
+    }
+  }
+  if (mb.parts.length) g.add(mb.mesh(true, true));
+  return { mesh: g, animate, radius };
 }
 
 export function buildArrow(): THREE.Mesh {

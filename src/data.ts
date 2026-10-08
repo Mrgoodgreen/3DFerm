@@ -143,7 +143,7 @@ export const HELPERS: HelperDef[] = [
   { id: 'h_honey', item: 'honey', from: { station: 'bees' }, to: { shelf: 'honey' }, shirt: 0xf9ca24 },
 ];
 
-export type UnlockKind = 'field' | 'station' | 'animal' | 'shelf' | 'helper' | 'fair';
+export type UnlockKind = 'field' | 'station' | 'animal' | 'shelf' | 'helper' | 'fair' | 'deco';
 export interface UnlockDef {
   id: string;
   cost: number;
@@ -235,7 +235,15 @@ export const UNLOCKS: UnlockDef[] = [
   u('hive3', 12000, ['hive2'], 'animal', 'bees', '🐝', animalPad('bees')),
   u('sheep4', 12000, ['sheep3', 'shelf_honey'], 'animal', 'sheep', '🐑', animalPad('sheep')),
   u('fair', 25000, ['shelf_honey'], 'fair', 'fair', '🎡', [24, -22]),
+  u('deco_fountain', 15000, ['fair'], 'deco', 'fountain', '⛲', [-27.5, -3]),
+  u('deco_gazebo', 25000, ['deco_fountain'], 'deco', 'gazebo', '🛖', [28.5, -9.4]),
+  u('deco_statue', 40000, ['deco_gazebo'], 'deco', 'statue', '🐮', [-14, -31]),
+  u('deco_balloon', 60000, ['deco_statue'], 'deco', 'balloon', '🎈', [12, -31]),
+  u('deco_arch', 90000, ['deco_balloon'], 'deco', 'arch', '🌸', [28.5, 6.2]),
+  u('deco_lighthouse', 140000, ['deco_arch'], 'deco', 'lighthouse', '🗼', [-28.5, -30.5]),
 ];
+
+export const DECO_BONUS = 0.05;
 
 export const FAIR = { x: 24, z: -27, priceBonus: 0.25 };
 
