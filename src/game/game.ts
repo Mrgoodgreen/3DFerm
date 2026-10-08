@@ -852,9 +852,11 @@ export class Game {
 
   private loop = (now: number) => {
     requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, Math.max(0, (now - this.lastFrame) / 1000));
+    const raw = Math.max(0, (now - this.lastFrame) / 1000);
+    const dt = Math.min(0.1, raw);
     this.lastFrame = now;
     if (this.pause.has('hidden') || this.pause.has('ad')) return;
+    this.adaptQuality(raw);
     const simPaused = this.pause.size > 0;
     if (!simPaused) this.update(dt);
     this.world.update(dt, now / 1000);
@@ -862,6 +864,31 @@ export class Game {
     this.labels.update(this.stage.camera);
     this.stage.render();
   };
+
+  private fpsAcc = 0;
+  private fpsFrames = 0;
+  private quality = 2;
+
+  /** Steps rendering quality down on slow devices: lower resolution first, then no shadows. */
+  private adaptQuality(frameSec: number) {
+    if (this.quality === 0 || frameSec > 0.5) return;
+    this.fpsAcc += frameSec;
+    this.fpsFrames++;
+    if (this.fpsAcc < 4) return;
+    const fps = this.fpsFrames / this.fpsAcc;
+    this.fpsAcc = 0;
+    this.fpsFrames = 0;
+    if (fps >= 38) return;
+    this.quality--;
+    const r = this.stage.renderer;
+    if (this.quality === 1) {
+      r.setPixelRatio(Math.min(1, window.devicePixelRatio || 1));
+      this.stage.resize();
+    } else {
+      this.stage.sun.castShadow = false;
+      r.shadowMap.enabled = false;
+    }
+  }
 
   private update(dt: number) {
     this.time += dt;
