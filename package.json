@@ -1,0 +1,27 @@
+{
+  "name": "arina-farm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ферма Арины — 3D фермерский тайкун для Яндекс Игр",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "zip": "npm run build && node scripts/zip.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mrgoodgreen/3DFerm.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.21"
+  }
+}
