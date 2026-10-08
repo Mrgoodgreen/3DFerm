@@ -703,11 +703,27 @@ export class Game {
           { text: t('take'), onClick: () => this.addCoins(reward, { x: innerWidth / 2, y: innerHeight / 2 }) },
         ],
         onClose: () => {
-          if (!watched) this.maybeInterstitial();
+          if (this.s.ch >= 3 && !this.s.reviewAsked) {
+            this.s.reviewAsked = true;
+            this.platformPrompt(() => sdk.requestReview());
+          } else if (this.s.ch >= 2 && !this.s.shortcutAsked) {
+            this.s.shortcutAsked = true;
+            this.platformPrompt(() => sdk.shortcutPrompt());
+          } else if (!watched) this.maybeInterstitial();
         },
       });
     });
     this.ui.enqueue(() => this.showChapterIntro());
+  }
+
+  private async platformPrompt(fn: () => Promise<boolean>) {
+    this.pauseAdd('sdk');
+    try {
+      await fn();
+    } finally {
+      this.pauseDel('sdk');
+      this.save();
+    }
   }
 
   showChapterIntro() {
@@ -749,15 +765,32 @@ export class Game {
       case 'unlock': {
         const pad = this.pads.get(this.firstMissing(q.target!));
         if (pad && pad.visible) {
-          const left = pad.def.cost - pad.paid;
-          if (this.s.coins >= Math.min(left, 1)) return new THREE.Vector3(pad.def.x, 0, pad.def.z);
-          return this.richestShelf() || new THREE.Vector3(pad.def.x, 0, pad.def.z);
+          if (this.s.coins >= 1) return new THREE.Vector3(pad.def.x, 0, pad.def.z);
+          return this.earnTarget() || new THREE.Vector3(pad.def.x, 0, pad.def.z);
         }
-        return null;
+        return this.earnTarget();
       }
+      case 'earn':
+      case 'helpers':
+        return this.earnTarget();
       default:
         return null;
     }
+  }
+
+  /** Best next step to make money: collect cash, restock a stall, or fetch goods for it. */
+  private earnTarget(): THREE.Vector3 | null {
+    const rich = this.richestShelf();
+    if (rich) return rich;
+    const shelves = [...this.shelves.values()].filter((sh) => sh.active);
+    for (const sh of shelves) if (this.player.has(sh.def.item) && sh.canAccept()) return sh.zone;
+    shelves.sort((a, b) => this.customers.waitingAt(b) - this.customers.waitingAt(a) || a.count - b.count);
+    for (const sh of shelves) {
+      if (sh.count >= 30) continue;
+      const g = this.guide(sh.def.item);
+      if (g) return g;
+    }
+    return null;
   }
 
   /** First not-yet-unlocked step on the requirement chain leading to `id`. */
@@ -1062,7 +1095,11 @@ export class Game {
       return;
     }
     const rate = Math.max(pad.def.cost / 2.2, 8);
-    const amt = Math.min(rate * dt, this.s.coins, left);
+    pad.payAcc += rate * dt;
+    const step = Math.floor(pad.payAcc);
+    if (step < 1) return;
+    pad.payAcc -= step;
+    const amt = Math.min(step, Math.floor(this.s.coins), Math.ceil(left));
     pad.paid += amt;
     this.s.coins -= amt;
     this.s.pads[pad.def.id] = pad.paid;

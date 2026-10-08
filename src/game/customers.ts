@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ITEMS, CONFIG, SHELF_Z, type ItemId } from '../data';
+import { ITEMS, CONFIG, type ItemId } from '../data';
 import { buildHuman, animateHuman, itemGeo, type Human } from '../render/models';
 import { MAT } from '../render/mb';
 import type { Shelf } from './shelf';
@@ -117,6 +117,10 @@ class Customer {
 
   dispose(scene: THREE.Scene) {
     scene.remove(this.h.root);
+    const shared = new Set<THREE.Object3D>(this.carry);
+    this.h.root.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && !shared.has(o)) (o as THREE.Mesh).geometry.dispose();
+    });
     this.bubble.remove();
     this.dead = true;
   }
@@ -214,4 +218,3 @@ export class CustomerManager {
   }
 }
 
-export { SHELF_Z };

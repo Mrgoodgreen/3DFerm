@@ -40,7 +40,7 @@ function paintGround(): HTMLCanvasElement {
   const cv = document.createElement('canvas');
   cv.width = W;
   cv.height = H;
-  const g = cv.getContext('2d')!;
+  const g = cv.getContext('2d', { willReadFrequently: true })!;
   const sx = W / IW;
   const px = (x: number) => (x - ISLAND.minX) * sx;
   const pz = (z: number) => (z - ISLAND.minZ) * sx;
@@ -365,7 +365,7 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   const tuftGeo = plotGeo('tuft');
   const tuftCount = mobile ? 260 : 520;
   const tufts = new THREE.InstancedMesh(tuftGeo, MAT, tuftCount);
-  const gctx = groundCanvas.getContext('2d')!;
+  const gctx = groundCanvas.getContext('2d', { willReadFrequently: true })!;
   const gdata = gctx.getImageData(0, 0, groundCanvas.width, groundCanvas.height).data;
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();

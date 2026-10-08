@@ -279,6 +279,28 @@ class YandexSDK {
     }
   }
 
+  async requestReview(): Promise<boolean> {
+    try {
+      const r = await this.ysdk?.feedback?.canReview();
+      if (!r?.value) return false;
+      const res = await this.ysdk.feedback.requestReview();
+      return !!res?.feedbackSent;
+    } catch {
+      return false;
+    }
+  }
+
+  async shortcutPrompt(): Promise<boolean> {
+    try {
+      const r = await this.ysdk?.shortcut?.canShowPrompt();
+      if (!r?.canShow) return false;
+      const res = await this.ysdk.shortcut.showPrompt();
+      return res?.outcome === 'accepted';
+    } catch {
+      return false;
+    }
+  }
+
   serverTime(): number {
     try {
       const t = this.ysdk?.serverTime?.();

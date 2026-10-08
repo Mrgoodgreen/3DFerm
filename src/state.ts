@@ -35,6 +35,8 @@ export interface SaveData {
   stats: { sold: number; earned: number; upgrades: number; play: number };
   introSeen: number;
   pos: [number, number];
+  reviewAsked: boolean;
+  shortcutAsked: boolean;
 }
 
 export function defaultSave(): SaveData {
@@ -67,6 +69,8 @@ export function defaultSave(): SaveData {
     stats: { sold: 0, earned: 0, upgrades: 0, play: 0 },
     introSeen: -1,
     pos: [2, 3],
+    reviewAsked: false,
+    shortcutAsked: false,
   };
 }
 
@@ -85,5 +89,7 @@ export function mergeSave(raw: unknown): SaveData {
   out.unlocked = Array.isArray(r.unlocked) ? r.unlocked : [];
   out.stack = Array.isArray(r.stack) ? r.stack : [];
   if (!isFinite(out.coins) || out.coins < 0) out.coins = 0;
+  out.coins = Math.floor(out.coins);
+  for (const k of Object.keys(out.pads)) out.pads[k] = Math.floor(out.pads[k] || 0);
   return out;
 }

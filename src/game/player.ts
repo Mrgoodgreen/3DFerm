@@ -70,6 +70,9 @@ export class Player {
   setSkin(skin: SkinDef) {
     this.scene.remove(this.h.root);
     this.h.stackAnchor.remove(this.stackRoot);
+    this.h.root.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose();
+    });
     this.h = buildHuman(skinHumanOpts(skin));
     this.attach();
     this.h.root.position.copy(this.pos);
