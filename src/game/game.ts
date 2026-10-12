@@ -40,6 +40,7 @@ import { Player, Pet } from './player';
 import { Helper, type HelperEnv } from './helper';
 import { CustomerManager, type CustomerEnv } from './customers';
 import type { GameCtx } from './ctx';
+import { ZoneMarker } from './zone';
 import { Input } from '../input';
 import { UI, el } from '../ui/ui';
 import { type SaveData } from '../state';
@@ -99,6 +100,8 @@ export class Game {
   private arrowTarget: THREE.Vector3 | null = null;
   private maxLabel: Label;
   private binPos = new THREE.Vector3(CONFIG.bin.x, 0, CONFIG.bin.z);
+  private binMarker: ZoneMarker;
+  private ripeRing: THREE.Mesh;
   private fairSpins: { o: THREE.Object3D; axis: 'y' | 'z'; speed: number }[] = [];
   private decoAnims: ((t: number) => void)[] = [];
   private decoColliders: Collider[] = [];
@@ -107,6 +110,7 @@ export class Game {
   private boostBtns!: { income: HTMLButtonElement; speed: HTMLButtonElement; gift: HTMLButtonElement };
   private shownCoins = -1;
   private completingQuest = false;
+  private shownBasket = -1;
   private sessionStart = performance.now();
   private lastFrame = performance.now();
 
@@ -122,6 +126,8 @@ export class Game {
     this.fx = new Effects(this.stage.scene, this.labels);
     this.input = new Input(this.stage.renderer.domElement, uiRoot);
     this.input.onFirstInput = () => audio.unlock();
+    this.input.setIdleJoystick(mobile);
+    window.addEventListener('resize', () => this.input.setIdleJoystick(mobile));
     this.world = buildWorld(this.stage, mobile);
 
     this.ctx = {
@@ -154,9 +160,9 @@ export class Game {
     this.customers = new CustomerManager(this.stage.scene, this.labels, this.fx);
 
     const bin = buildBin();
-    bin.position.copy(this.binPos);
+    bin.position.set(this.binPos.x, 0, this.binPos.z - 1.5);
     this.stage.scene.add(bin);
-    this.labels.add('🗑️', new THREE.Vector3(this.binPos.x, 1.7, this.binPos.z), 'icon-label');
+    this.binMarker = new ZoneMarker(this.stage.scene, this.binPos, '🗑️', 'bin', 0.85);
 
     this.arrow = buildArrow();
     this.arrow.visible = false;
@@ -172,6 +178,12 @@ export class Game {
     this.groundArrow = new THREE.Mesh(gaGeo, new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthWrite: false }));
     this.groundArrow.visible = false;
     this.stage.scene.add(this.groundArrow);
+    const ringGeo = new THREE.RingGeometry(0.5, 0.68, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    this.ripeRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfffbe0, transparent: true, opacity: 0.85, depthWrite: false }));
+    this.ripeRing.renderOrder = 2;
+    this.ripeRing.visible = false;
+    this.stage.scene.add(this.ripeRing);
     this.maxLabel = this.labels.add(t('max'), new THREE.Vector3(), 'max-label');
     this.maxLabel.visible = false;
 
@@ -211,6 +223,7 @@ export class Game {
     ];
     const res = renderPortraits(this.stage.renderer, jobs);
     this.portraits = { arina: res[0], granny: res[1], fedor: res[2], petya: res[3] };
+    this.ui.setAvatar(res[0]);
     SKINS.forEach((k, i) => (this.skinPortraits[k.id] = res[4 + i]));
   }
 
@@ -254,7 +267,7 @@ export class Game {
     const c: Collider[] = [...this.world.colliders];
     for (const st of this.stations.values()) if (st.active) c.push(st.collider);
     for (const sh of this.shelves.values()) if (sh.active) c.push(sh.collider);
-    c.push({ x1: this.binPos.x - 0.45, z1: this.binPos.z - 0.45, x2: this.binPos.x + 0.45, z2: this.binPos.z + 0.45 });
+    c.push({ x1: this.binPos.x - 0.45, z1: this.binPos.z - 1.95, x2: this.binPos.x + 0.45, z2: this.binPos.z - 1.05 });
     if (this.unlocked.has('fair')) c.push({ x1: FAIR.x - 4.4, z1: FAIR.z - 3.4, x2: FAIR.x + 4.6, z2: FAIR.z + 3.2 });
     c.push(...this.decoColliders);
     this.colliders = c;
@@ -365,6 +378,11 @@ export class Game {
       audio.unlock();
       audio.play('click');
       this.openWardrobe();
+    };
+    ui.coinPlusBtn.onclick = () => {
+      audio.unlock();
+      audio.play('click');
+      this.openCoinOffer();
     };
     ui.shopBtn.onclick = () => {
       audio.unlock();
@@ -825,12 +843,33 @@ export class Game {
 
   private refreshQuest() {
     const q = this.currentQuest();
-    this.ui.setQuest(q.chapter, q.text, this.s.qp, q.n, q.reward);
+    this.ui.setQuest(q.chapter, q.text, this.s.qp, q.n, q.reward, this.questIcon(q));
+  }
+
+  private questIcon(q: QuestView): string {
+    switch (q.type) {
+      case 'harvest':
+      case 'collect':
+      case 'sell':
+        return ITEMS[q.target as ItemId]?.icon || '📦';
+      case 'feed': {
+        const st = STATIONS.find((x) => x.id === q.target);
+        return st?.input ? ITEMS[st.input].icon : '📦';
+      }
+      case 'unlock':
+        return UNLOCKS.find((x) => x.id === q.target)?.icon || '🔓';
+      case 'earn':
+        return '🪙';
+      case 'upgrade':
+        return '🔨';
+      case 'helpers':
+        return '👨‍🌾';
+    }
   }
 
   private refreshHUD() {
     this.ui.setCoins(Math.floor(this.s.coins));
-    this.ui.setLevel(this.s.level, this.s.xp / xpForLevel(this.s.level));
+    this.ui.setLevel(this.s.level, Math.floor(this.s.xp), xpForLevel(this.s.level));
     this.refreshQuest();
   }
 
@@ -912,6 +951,7 @@ export class Game {
 
     this.interact(dt);
     this.updatePads(dt);
+    this.updateZoneHints(dt);
 
     const henv: HelperEnv = {
       fields: this.fields,
@@ -969,6 +1009,11 @@ export class Game {
       this.maxLabel.pos.y += 0.5;
     }
 
+    const basketKey = this.player.count * 1000 + this.capacity();
+    if (basketKey !== this.shownBasket) {
+      this.shownBasket = basketKey;
+      this.ui.setBasket(this.player.count, this.capacity());
+    }
     const coinsNow = Math.floor(s.coins);
     if (coinsNow !== this.shownCoins) {
       this.shownCoins = coinsNow;
@@ -991,6 +1036,48 @@ export class Game {
     if (this.saveT <= 0) {
       this.saveT = 6;
       this.save();
+    }
+  }
+
+  /** Zones pulse when the player can actually use them right now. */
+  private updateZoneHints(dt: number) {
+    const pl = this.player;
+    const room = pl.count < this.capacity();
+    for (const st of this.stations.values()) {
+      if (!st.active) continue;
+      const inp = st.def.input;
+      if (st.inMarker && inp) st.inMarker.active = pl.has(inp) && st.canAccept();
+      st.outMarker.active = st.outCount > 0 && room;
+    }
+    for (const sh of this.shelves.values()) {
+      if (sh.active) sh.marker.active = (pl.has(sh.def.item) && sh.canAccept()) || sh.coins >= 1;
+    }
+    this.binMarker.update(dt);
+    this.updateRipeHighlight();
+  }
+
+  private updateRipeHighlight() {
+    const p = this.player.pos;
+    let best: { x: number; z: number; tree: boolean } | null = null;
+    let bd = 3.5 * 3.5;
+    if (this.player.count < this.capacity()) {
+      for (const f of this.fields.values()) {
+        if (!f.active || !f.contains(p.x, p.z, 3.5)) continue;
+        const i = f.nearestRipe(p.x, p.z, false);
+        if (i < 0) continue;
+        const pl = f.plots[i];
+        const d = (pl.x - p.x) ** 2 + (pl.z - p.z) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = { x: pl.x, z: pl.z, tree: f.def.kind === 'tree' };
+        }
+      }
+    }
+    this.ripeRing.visible = !!best;
+    if (best) {
+      this.ripeRing.position.set(best.x, 0.06, best.z);
+      const s = (best.tree ? 1.7 : 1) * (1 + Math.sin(this.time * 7) * 0.08);
+      this.ripeRing.scale.setScalar(s);
     }
   }
 
@@ -1075,9 +1162,10 @@ export class Game {
         return;
       }
     }
-    if (pl.count > 0 && dist2(p, this.binPos) < 1.5 * 1.5) {
+    if (pl.count > 0 && dist2(p, this.binPos) < 1.2 * 1.2) {
       const r = pl.remove()!;
-      this.fx.fly(r.item, r.pos, this.binPos.clone().setY(0.9), 0.25, () => this.fx.burst(this.binPos.clone().setY(1), 0xcccccc, 3, 1.5, 0.5), 0.8);
+      const binTop = new THREE.Vector3(this.binPos.x, 0.95, this.binPos.z - 1.5);
+      this.fx.fly(r.item, r.pos, binTop, 0.25, () => this.fx.burst(binTop, 0xcccccc, 3, 1.5, 0.5), 0.8);
       audio.play('drop');
       this.transferT = 0.05;
     }
@@ -1352,10 +1440,33 @@ export class Game {
     this.player.setSkin(k);
     this.player.restore(items);
     this.portraits.arina = renderPortraits(this.stage.renderer, [{ opts: skinHumanOpts(k) }])[0];
+    this.ui.setAvatar(this.portraits.arina);
     this.stage.resize();
     audio.play('unlock');
     this.fx.burst(this.player.pos.clone().setY(1), 0xff9ec7, 16, 4, 1);
     this.save();
+  }
+
+  openCoinOffer() {
+    const hasShop = sdk.catalog.some((p) => p.id in IAP_COINS);
+    const n = this.giftAmount();
+    const body = el('div', '', `<div class="reward-ico">💰</div><div class="modal-text">${t('free_coins_text')}</div><div class="reward-big">🪙 ${fmt(n)}</div>`);
+    const buttons = [
+      {
+        text: `📺 +${fmt(n)}`,
+        cls: 'purple',
+        onClick: async () => {
+          const ok = await this.rewarded();
+          if (ok) this.addCoins(n, { x: innerWidth / 2, y: innerHeight / 2 });
+          return !ok;
+        },
+      },
+    ];
+    if (hasShop) buttons.push({ text: `🛍️ ${t('shop')}`, cls: 'orange', onClick: async () => {
+      setTimeout(() => this.openShop(), 50);
+      return false;
+    } });
+    this.ui.modal({ title: t('free_coins'), color: 'purple', body, center: true, buttons });
   }
 
   openShop() {

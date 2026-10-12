@@ -41,9 +41,14 @@ export class UI {
   private coinPill!: HTMLElement;
   private lvlEl!: HTMLElement;
   private xpFill!: HTMLElement;
+  private xpText!: HTMLElement;
+  private avatar!: HTMLElement;
+  private basketEl!: HTMLElement;
+  private basketPill!: HTMLElement;
   private questEl!: HTMLElement;
   private questChapter!: HTMLElement;
   private questText!: HTMLElement;
+  private questIcon!: HTMLElement;
   private questFill!: HTMLElement;
   private questCount!: HTMLElement;
   private questReward!: HTMLElement;
@@ -51,10 +56,12 @@ export class UI {
   private hintEl: HTMLElement | null = null;
   rightCol!: HTMLElement;
   topRight!: HTMLElement;
+  actions!: HTMLElement;
   upgradesBtn!: HTMLButtonElement;
   wardrobeBtn!: HTMLButtonElement;
   settingsBtn!: HTMLButtonElement;
   shopBtn!: HTMLButtonElement;
+  coinPlusBtn!: HTMLButtonElement;
   private overlayStack: HTMLElement[] = [];
   private queue: QueuedModal[] = [];
   onModalChange: (open: boolean) => void = () => undefined;
@@ -66,47 +73,67 @@ export class UI {
 
   private buildHUD() {
     const tl = el('div', 'hud-tl');
-    const row = el('div', 'hud-row');
-    this.coinPill = el('div', 'pill');
-    this.coinPill.innerHTML = '<span class="ico">🪙</span>';
-    this.coinsEl = el('span', '', '0');
-    this.coinPill.appendChild(this.coinsEl);
-    const lvl = el('div', 'pill lvl-pill');
-    this.lvlEl = el('div', 'lvl-badge', '1');
-    const xp = el('div', 'xp-bar');
+    const prof = el('div', 'profile');
+    this.avatar = el('div', 'avatar', '👧');
+    const star = el('div', 'lvl-star');
+    this.lvlEl = el('span', '', '1');
+    star.appendChild(this.lvlEl);
+    const xp = el('div', 'xp-pill');
+    const bar = el('div', 'xp-bar');
     this.xpFill = el('div', 'xp-fill');
-    xp.appendChild(this.xpFill);
-    lvl.append(this.lvlEl, xp);
-    row.append(this.coinPill, lvl);
-    tl.appendChild(row);
+    this.xpText = el('div', 'xp-text', '0/0');
+    bar.append(this.xpFill, this.xpText);
+    xp.appendChild(bar);
+    prof.append(this.avatar, star, xp);
+    tl.appendChild(prof);
 
     this.questEl = el('div', 'quest');
+    const qHead = el('div', 'quest-head');
+    qHead.appendChild(el('div', 'quest-clip', '📋'));
+    const qMain = el('div', 'quest-main');
     this.questChapter = el('div', 'quest-chapter');
     this.questText = el('div', 'quest-text');
-    const bar = el('div', 'quest-bar');
+    qMain.append(this.questChapter, this.questText);
+    qHead.appendChild(qMain);
+    const qRow = el('div', 'quest-row');
+    this.questIcon = el('div', 'quest-icon');
+    const qbar = el('div', 'quest-bar');
     this.questFill = el('div', 'quest-fill');
-    bar.appendChild(this.questFill);
-    const meta = el('div', 'quest-meta');
-    this.questCount = el('span');
-    this.questReward = el('span');
-    meta.append(this.questCount, this.questReward);
-    this.questEl.append(this.questChapter, this.questText, bar, meta);
+    this.questCount = el('div', 'quest-count');
+    qbar.append(this.questFill, this.questCount);
+    qRow.append(this.questIcon, qbar);
+    this.questReward = el('div', 'quest-reward');
+    this.questEl.append(qHead, qRow, this.questReward);
     tl.appendChild(this.questEl);
     this.root.appendChild(tl);
 
     this.topRight = el('div', 'hud-tr');
-    this.settingsBtn = this.roundBtn('⚙️');
-    this.wardrobeBtn = this.roundBtn('👗');
-    this.shopBtn = this.roundBtn('🛍️');
-    this.shopBtn.style.display = 'none';
-    this.topRight.append(this.settingsBtn, this.wardrobeBtn, this.shopBtn);
+    const res = el('div', 'res-row');
+    this.coinPill = el('div', 'res-pill');
+    this.coinPill.appendChild(el('span', 'res-ico coin', '🪙'));
+    this.coinsEl = el('span', 'res-val', '0');
+    this.coinPill.appendChild(this.coinsEl);
+    this.coinPlusBtn = el('button', 'plus-btn interactive', '+');
+    this.coinPill.appendChild(this.coinPlusBtn);
+    this.basketPill = el('div', 'res-pill');
+    this.basketPill.appendChild(el('span', 'res-ico', '🧺'));
+    this.basketEl = el('span', 'res-val', '0/0');
+    this.basketPill.appendChild(this.basketEl);
+    this.settingsBtn = this.roundBtn('⚙️', 'gear-btn');
+    res.append(this.coinPill, this.basketPill, this.settingsBtn);
+    this.topRight.appendChild(res);
     this.root.appendChild(this.topRight);
 
     this.rightCol = el('div', 'hud-r');
-    this.upgradesBtn = this.roundBtn('⬆️', 'big-btn');
-    this.upgradesBtn.appendChild(el('span', 'btn-caption', t('upgrades')));
-    this.rightCol.appendChild(this.upgradesBtn);
     this.root.appendChild(this.rightCol);
+
+    this.actions = el('div', 'hud-br');
+    this.shopBtn = this.actionBtn('🛍️', t('shop'), 'purple');
+    this.shopBtn.style.display = 'none';
+    this.wardrobeBtn = this.actionBtn('👗', t('wardrobe'), 'pink');
+    this.upgradesBtn = this.actionBtn('🔨', t('build'), 'blue');
+    this.actions.append(this.shopBtn, this.wardrobeBtn, this.upgradesBtn);
+    this.root.appendChild(this.actions);
 
     this.toasts = el('div', 'toasts');
     this.root.appendChild(this.toasts);
@@ -116,6 +143,25 @@ export class UI {
     const b = el('button', 'round-btn interactive ' + extra, icon);
     b.appendChild(el('span', 'dot'));
     return b;
+  }
+
+  private actionBtn(icon: string, caption: string, color: string): HTMLButtonElement {
+    const b = el('button', 'act-btn interactive ' + color);
+    b.appendChild(el('span', 'act-circle', icon));
+    b.appendChild(el('span', 'act-caption', caption));
+    b.appendChild(el('span', 'dot'));
+    return b;
+  }
+
+  setAvatar(url: string) {
+    if (!url) return;
+    this.avatar.innerHTML = '';
+    this.avatar.appendChild(Object.assign(new Image(), { src: url }));
+  }
+
+  setBasket(n: number, cap: number) {
+    this.basketEl.textContent = `${n}/${cap}`;
+    this.basketPill.classList.toggle('full', n >= cap);
   }
 
   setCoins(n: number, bump = false) {
@@ -148,17 +194,19 @@ export class UI {
     }
   }
 
-  setLevel(level: number, frac: number) {
+  setLevel(level: number, xp: number, need: number) {
     this.lvlEl.textContent = String(level);
-    this.xpFill.style.width = `${Math.min(100, Math.max(0, frac * 100))}%`;
+    this.xpFill.style.width = `${Math.min(100, Math.max(0, (xp / need) * 100))}%`;
+    this.xpText.textContent = `${fmt(xp)}/${fmt(need)}`;
   }
 
-  setQuest(chapter: string, text: string, cur: number, n: number, reward: number) {
+  setQuest(chapter: string, text: string, cur: number, n: number, reward: number, icon: string) {
     this.questChapter.textContent = chapter;
     this.questText.textContent = text;
+    this.questIcon.textContent = icon;
     this.questFill.style.width = `${Math.min(100, (cur / n) * 100)}%`;
-    this.questCount.textContent = n > 1 ? `${fmt(Math.min(cur, n))}/${fmt(n)}` : '';
-    this.questReward.textContent = reward > 0 ? `${t('reward')}: 🪙${fmt(reward)}` : '';
+    this.questCount.textContent = `${fmt(Math.min(cur, n))}/${fmt(n)}`;
+    this.questReward.textContent = reward > 0 ? `${t('reward')}: 🪙 ${fmt(reward)}` : '';
   }
 
   questFlash() {

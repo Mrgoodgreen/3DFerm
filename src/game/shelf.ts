@@ -5,6 +5,7 @@ import { ItemPile } from './pile';
 import type { GameCtx } from './ctx';
 import type { Label } from './labels';
 import type { Collider } from '../render/world';
+import { ZoneMarker } from './zone';
 
 export class Shelf {
   group = new THREE.Group();
@@ -17,6 +18,7 @@ export class Shelf {
   collider: Collider;
   spots: (unknown | null)[] = [null, null];
   private label: Label;
+  marker: ZoneMarker;
   private coinLabel: Label;
 
   constructor(
@@ -24,7 +26,7 @@ export class Shelf {
     ctx: GameCtx,
   ) {
     const x = def.x;
-    this.zone = new THREE.Vector3(x, 0, SHELF_Z - 2.5);
+    this.zone = new THREE.Vector3(x, 0, SHELF_Z - 2.9);
     const stall = buildStall(def.awning);
     stall.position.set(x, 0, SHELF_Z);
     this.group.add(stall);
@@ -32,18 +34,12 @@ export class Shelf {
     this.pile.mesh.position.set(x, 0.96, SHELF_Z);
     this.group.add(this.pile.mesh);
     this.coinPile = new ItemPile('coin', 40, 4, 2, 0.36, 0.36, 0.065);
-    this.coinPile.mesh.position.set(x + 1.05, 0.02, SHELF_Z - 1.55);
+    this.coinPile.mesh.position.set(x + 0.85, 0.02, SHELF_Z - 1.0);
     this.group.add(this.coinPile.mesh);
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(1.05, 1.2, 28),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(this.zone.x, 0.03, this.zone.z);
-    this.group.add(ring);
+    this.marker = new ZoneMarker(this.group, this.zone, ITEMS[def.item].icon, 'sell');
     this.collider = { x1: x - 1.35, z1: SHELF_Z - 0.6, x2: x + 1.35, z2: SHELF_Z + 0.6 };
     this.label = ctx.labels.add('', new THREE.Vector3(x, 3.1, SHELF_Z), 'st-label');
-    this.coinLabel = ctx.labels.add('', new THREE.Vector3(x + 1.05, 1.2, SHELF_Z - 1.55), 'float-text');
+    this.coinLabel = ctx.labels.add('', new THREE.Vector3(x + 0.85, 1.2, SHELF_Z - 1.0), 'float-text');
     this.group.visible = false;
     this.label.visible = false;
     this.coinLabel.visible = false;
@@ -110,6 +106,7 @@ export class Shelf {
   }
 
   update(dt: number) {
+    this.marker.update(dt);
     this.pile.update(dt);
     this.coinPile.update(dt);
   }

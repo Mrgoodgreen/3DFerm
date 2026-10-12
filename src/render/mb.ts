@@ -7,7 +7,11 @@ export interface PartOpts {
   r?: V3;
   s?: number | V3;
   flat?: boolean;
+  /** Brightness at the bottom of the part (1 = no vertical shading). */
+  ao?: number;
 }
+
+const DEFAULT_AO = 0.7;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -39,12 +43,27 @@ export class MB {
     g.applyMatrix4(_m);
     if (o.flat) g.computeVertexNormals();
     const c = new THREE.Color(color);
-    const n = g.attributes.position.count;
+    const pos = g.attributes.position;
+    const n = pos.count;
     const arr = new Float32Array(n * 3);
+    let minY = Infinity;
+    let maxY = -Infinity;
     for (let i = 0; i < n; i++) {
-      arr[i * 3] = c.r;
-      arr[i * 3 + 1] = c.g;
-      arr[i * 3 + 2] = c.b;
+      const y = pos.getY(i);
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const ao = o.ao ?? DEFAULT_AO;
+    const range = maxY - minY;
+    for (let i = 0; i < n; i++) {
+      let k = 1;
+      if (ao < 1 && range > 0.04) {
+        const tt = (pos.getY(i) - minY) / range;
+        k = ao + (1 - ao) * Math.min(1, tt * 1.4);
+      }
+      arr[i * 3] = c.r * k;
+      arr[i * 3 + 1] = c.g * k;
+      arr[i * 3 + 2] = c.b * k;
     }
     g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     this.parts.push(g);

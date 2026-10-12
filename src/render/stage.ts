@@ -7,7 +7,7 @@ export class Stage {
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
   camTarget = new THREE.Vector3();
-  private camOffset = new THREE.Vector3(0, 17, 12.5);
+  private camOffset = new THREE.Vector3(0, 12.6, 12.2);
   private zoom = 1;
   shakeT = 0;
 
@@ -21,21 +21,21 @@ export class Stage {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
 
-    const sky = new THREE.Color(0x8ed9f2);
+    const sky = new THREE.Color(0x9fdcf0);
     this.scene.background = sky;
-    this.scene.fog = new THREE.Fog(sky, 45, 95);
+    this.scene.fog = new THREE.Fog(sky, 42, 90);
 
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 200);
 
-    this.hemi = new THREE.HemisphereLight(0xfff6e0, 0x7fb069, 1.55);
+    this.hemi = new THREE.HemisphereLight(0xfff1d0, 0x6f9a3c, 1.35);
     this.scene.add(this.hemi);
-    const amb = new THREE.AmbientLight(0xffffff, 0.35);
+    const amb = new THREE.AmbientLight(0xfff4e6, 0.3);
     this.scene.add(amb);
 
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 2.3);
+    this.sun = new THREE.DirectionalLight(0xffdfae, 2.9);
     this.sun.castShadow = true;
     const size = mobile ? 1024 : 2048;
     this.sun.shadow.mapSize.set(size, size);
@@ -62,7 +62,7 @@ export class Stage {
     this.camera.aspect = w / h;
     const portrait = h > w;
     this.zoom = portrait ? Math.min(1.75, 1 + (h / w - 1) * 0.65) : 1;
-    this.camera.fov = portrait ? 46 : 40;
+    this.camera.fov = portrait ? 44 : 38;
     this.camera.updateProjectionMatrix();
   }
 
@@ -82,7 +82,7 @@ export class Stage {
       this.camera.position.y += (Math.random() - 0.5) * s;
     }
     this.camera.lookAt(this.camTarget.x, this.camTarget.y + 0.6, this.camTarget.z);
-    this.sun.position.set(this.camTarget.x + 10, this.camTarget.y + 22, this.camTarget.z + 8);
+    this.sun.position.set(this.camTarget.x - 9, this.camTarget.y + 20, this.camTarget.z + 11);
     this.sun.target.position.copy(this.camTarget);
   }
 

@@ -45,6 +45,13 @@ export class Field {
         }
       }
     }
+    if (def.kind === 'wheat' || def.kind === 'carrot') {
+      const hw = ((def.cols - 1) * def.spacing) / 2 + def.spacing * 0.6;
+      const hd = ((def.rows - 1) * def.spacing) / 2 + def.spacing * 0.6;
+      for (const sz of [-1, 1]) statics.add(box(hw * 2 + 0.2, 0.22, 0.14), 0x9a6a3a, { p: [def.x, 0.11, def.z + sz * hd] });
+      for (const sx of [-1, 1]) statics.add(box(0.14, 0.22, hd * 2), 0x9a6a3a, { p: [def.x + sx * hw, 0.11, def.z] });
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) statics.add(box(0.2, 0.32, 0.2), 0x7a4b25, { p: [def.x + sx * hw, 0.16, def.z + sz * hd] });
+    }
     if (def.kind === 'wheat') {
       // Scarecrow
       const sx = def.x + ((def.cols - 1) * def.spacing) / 2 + 1.1;

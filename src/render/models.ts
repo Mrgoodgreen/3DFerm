@@ -67,17 +67,136 @@ export function gableRoof(mb: MB, w: number, d: number, y: number, rise: number,
   }
 }
 
-// Rotated gable: ridge along X axis (front faces +z).
+export function shade(color: number, k: number): number {
+  const c = new THREE.Color(color);
+  c.r = Math.min(1, c.r * k);
+  c.g = Math.min(1, c.g * k);
+  c.b = Math.min(1, c.b * k);
+  return c.getHex();
+}
+
+// Rotated gable: ridge along X axis (front faces +z). Shingle rows give the roof texture.
 function gableRoofX(mb: MB, w: number, d: number, y: number, rise: number, roof: number, wall: number, over = 0.25) {
   mb.add(prism(d, rise, w - 0.02), wall, { p: [0, y, 0], r: [0, Math.PI / 2, 0] });
   const half = d / 2 + over;
   const len = Math.sqrt(half * half + rise * rise);
   const ang = Math.atan2(rise, half);
+  const rows = Math.max(3, Math.round(len / 0.32));
+  const rw = w + over * 2;
   for (const sgn of [-1, 1]) {
-    mb.add(box(w + over * 2, 0.14, len), roof, {
-      p: [0, y + rise / 2 + 0.06, (sgn * half) / 2],
-      r: [sgn * ang, 0, 0],
-    });
+    const th = sgn * ang;
+    const cy = y + rise / 2 + 0.06;
+    const cz = (sgn * half) / 2;
+    mb.add(box(rw, 0.14, len), shade(roof, 0.8), { p: [0, cy, cz], r: [th, 0, 0], ao: 1 });
+    for (let k = 0; k < rows; k++) {
+      const lz = -len / 2 + ((k + 0.5) * len) / rows;
+      const ly = 0.1;
+      const py = ly * Math.cos(th) - lz * Math.sin(th);
+      const pz = ly * Math.sin(th) + lz * Math.cos(th);
+      mb.add(box(rw + 0.04, 0.07, (len / rows) * 1.05), k % 2 ? roof : shade(roof, 1.12), {
+        p: [0, cy + py, cz + pz],
+        r: [th - sgn * 0.06, 0, 0],
+        ao: 1,
+      });
+    }
+  }
+  mb.add(box(rw + 0.08, 0.16, 0.22), shade(roof, 0.75), { p: [0, y + rise + 0.18, 0], ao: 1 });
+}
+
+/** Vertical board lines and a stone foundation for a box-shaped wall block. */
+function planks(mb: MB, w: number, h: number, d: number, cx: number, cz: number, color: number, step = 0.32) {
+  const dark = shade(color, 0.82);
+  for (let x = -w / 2 + step; x < w / 2 - 0.05; x += step) {
+    mb.add(box(0.035, h * 0.96, 0.02), dark, { p: [cx + x, h / 2, cz + d / 2 + 0.01], ao: 0.85 });
+  }
+  for (let z = -d / 2 + step; z < d / 2 - 0.05; z += step) {
+    for (const sx of [-1, 1]) mb.add(box(0.02, h * 0.96, 0.035), dark, { p: [cx + sx * (w / 2 + 0.01), h / 2, cz + z], ao: 0.85 });
+  }
+  mb.add(box(w + 0.16, 0.3, d + 0.16), 0x9b968c, { p: [cx, 0.15, cz], ao: 0.8 });
+  for (let i = 0; i < Math.floor(w / 0.45); i++) {
+    mb.add(box(0.38, 0.12, 0.04), i % 2 ? 0xb4ada0 : 0x8c867b, { p: [cx - w / 2 + 0.25 + i * 0.45, 0.16 + (i % 2) * 0.08, cz + d / 2 + 0.09], ao: 1 });
+  }
+}
+
+export function addSunflower(mb: MB, x: number, z: number, h = 1.3) {
+  mb.add(cyl(0.035, 0.045, h, 5), 0x4f8a2a, { p: [x, h / 2, z] });
+  mb.add(box(0.28, 0.02, 0.12), 0x5fa83a, { p: [x + 0.12, h * 0.45, z], r: [0, 0, 0.4] });
+  mb.add(box(0.28, 0.02, 0.12), 0x5fa83a, { p: [x - 0.12, h * 0.6, z], r: [0, 0, -0.4] });
+  const fy = h + 0.05;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    mb.add(sph(0.09, 6, 4), i % 2 ? 0xffc21a : 0xffd84a, { p: [x + Math.cos(a) * 0.17, fy + Math.sin(a) * 0.17, z + 0.05], s: [1, 1, 0.35], ao: 1 });
+  }
+  mb.add(sph(0.12, 8, 6), 0x6b3d17, { p: [x, fy, z + 0.08], s: [1, 1, 0.5], ao: 1 });
+}
+
+export function addHayBale(mb: MB, x: number, z: number, ry = 0, y = 0) {
+  mb.add(box(1.0, 0.55, 0.65), 0xe6bf5a, { p: [x, y + 0.275, z], r: [0, ry, 0] });
+  const c = Math.cos(ry);
+  const s = Math.sin(ry);
+  for (const k of [-0.28, 0.28]) mb.add(box(0.05, 0.57, 0.67), 0xb98a2e, { p: [x + c * k, y + 0.275, z - s * k], r: [0, ry, 0] });
+  for (let i = 0; i < 3; i++) mb.add(box(0.98, 0.02, 0.02), 0xf5d98a, { p: [x, y + 0.56, z + (i - 1) * 0.18 * c], r: [0, ry, 0], ao: 1 });
+}
+
+export function addBarrel(mb: MB, x: number, z: number) {
+  mb.add(cyl(0.36, 0.32, 0.9, 12), 0xa86a35, { p: [x, 0.45, z] });
+  mb.add(cyl(0.38, 0.38, 0.06, 12), 0x5a5a5a, { p: [x, 0.2, z], ao: 1 });
+  mb.add(cyl(0.38, 0.38, 0.06, 12), 0x5a5a5a, { p: [x, 0.7, z], ao: 1 });
+  mb.add(cyl(0.33, 0.33, 0.04, 12), 0x8a5428, { p: [x, 0.91, z], ao: 1 });
+}
+
+export function addMilkCan(mb: MB, x: number, z: number) {
+  mb.add(cyl(0.22, 0.24, 0.6, 12), 0xc9d1d8, { p: [x, 0.3, z] });
+  mb.add(cyl(0.12, 0.22, 0.18, 12), 0xb5bec6, { p: [x, 0.69, z] });
+  mb.add(cyl(0.13, 0.13, 0.08, 12), 0x9aa4ad, { p: [x, 0.82, z], ao: 1 });
+  mb.add(torus(0.1, 0.02, 4, 10, Math.PI), 0x8a939b, { p: [x, 0.86, z], ao: 1 });
+}
+
+export function addCrate(mb: MB, x: number, z: number, s = 0.6, y = 0, ry = 0) {
+  mb.add(box(s, s, s), 0xc48a4e, { p: [x, y + s / 2, z], r: [0, ry, 0] });
+  mb.add(box(s + 0.03, 0.06, s + 0.03), 0x8f5d2e, { p: [x, y + s - 0.04, z], r: [0, ry, 0], ao: 1 });
+  mb.add(box(s + 0.03, 0.06, s + 0.03), 0x8f5d2e, { p: [x, y + 0.04, z], r: [0, ry, 0], ao: 1 });
+  mb.add(box(0.06, s * 1.3, 0.03), 0x8f5d2e, { p: [x, y + s / 2, z + (s / 2 + 0.02) * Math.cos(ry)], r: [0, ry, 0.78], ao: 1 });
+}
+
+export function addLantern(mb: MB, x: number, z: number, h = 2.2) {
+  mb.add(box(0.16, h, 0.16), 0x7a5230, { p: [x, h / 2, z] });
+  mb.add(box(0.6, 0.1, 0.1), 0x7a5230, { p: [x + 0.25, h - 0.1, z], ao: 1 });
+  mb.add(box(0.2, 0.28, 0.2), 0x2f2f2f, { p: [x + 0.48, h - 0.35, z], ao: 1 });
+  mb.add(box(0.15, 0.2, 0.15), 0xffd27a, { p: [x + 0.48, h - 0.35, z], ao: 1 });
+  mb.add(cone(0.16, 0.12, 4), 0x2f2f2f, { p: [x + 0.48, h - 0.16, z], r: [0, Math.PI / 4, 0], ao: 1 });
+}
+
+export function addWheelbarrow(mb: MB, x: number, z: number, ry = 0.5) {
+  const c = Math.cos(ry);
+  const s = Math.sin(ry);
+  const P = (lx: number, ly: number, lz: number): [number, number, number] => [x + lx * c + lz * s, ly, z - lx * s + lz * c];
+  mb.add(box(0.8, 0.35, 0.6), 0xb07a45, { p: P(0, 0.55, 0), r: [0, ry, 0] });
+  mb.add(box(0.72, 0.12, 0.52), 0x6cc04a, { p: P(0, 0.75, 0), r: [0, ry, 0], ao: 1 });
+  for (let i = 0; i < 5; i++) mb.add(cone(0.06, 0.25, 4), 0x86d35f, { p: P(-0.28 + i * 0.14, 0.88, (i % 2) * 0.12 - 0.06), ao: 1 });
+  mb.add(cyl(0.18, 0.18, 0.08, 10), 0x3a3a3a, { p: P(0.5, 0.18, 0), r: [Math.PI / 2, ry, 0], ao: 1 });
+  for (const sz of [-0.2, 0.2]) {
+    mb.add(box(1.1, 0.05, 0.05), 0x7a5230, { p: P(-0.25, 0.5, sz), r: [0, ry, -0.25] });
+    mb.add(box(0.05, 0.35, 0.05), 0x7a5230, { p: P(-0.2, 0.18, sz), r: [0, ry, 0] });
+  }
+}
+
+export function addTomatoBush(mb: MB, x: number, z: number) {
+  mb.add(cyl(0.02, 0.02, 0.9, 4), 0x9b7b4e, { p: [x, 0.45, z], ao: 1 });
+  mb.add(ico(0.32, 1), 0x4f9a3a, { p: [x, 0.5, z], s: [1, 1.3, 1], flat: true });
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.3;
+    mb.add(sph(0.08, 8, 6), i % 3 === 2 ? 0xffa53a : 0xe8392f, { p: [x + Math.cos(a) * 0.26, 0.35 + (i % 3) * 0.18, z + Math.sin(a) * 0.26], ao: 1 });
+  }
+}
+
+export function addFlowerBush(mb: MB, x: number, z: number, s = 1, color = 0xffffff) {
+  mb.add(ico(0.42 * s, 1), 0x4e9c3a, { p: [x, 0.32 * s, z], s: [1.2, 0.85, 1], flat: true });
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.1;
+    const r = 0.3 * s;
+    mb.add(sph(0.07, 6, 4), color, { p: [x + Math.cos(a) * r, 0.42 * s + (i % 3) * 0.08, z + Math.sin(a) * r], ao: 1 });
+    mb.add(sph(0.03, 4, 3), 0xffd23f, { p: [x + Math.cos(a) * r, 0.46 * s + (i % 3) * 0.08, z + Math.sin(a) * r + 0.03], ao: 1 });
   }
 }
 
@@ -246,6 +365,8 @@ export function buildHuman(o: HumanOpts): Human {
     torso.add(box(0.05, 0.3, 0.05), o.pants, { p: [0.12, 1.02, 0.15], r: [0.15, 0, 0] });
     torso.add(sph(0.025, 6, 4), C.gold, { p: [-0.12, 0.97, 0.2] });
     torso.add(sph(0.025, 6, 4), C.gold, { p: [0.12, 0.97, 0.2] });
+    for (const y of [0.9, 1.0, 1.1]) torso.add(cyl(0.192 + (1.12 - y) * 0.04, 0.192 + (1.12 - y) * 0.04, 0.025, 12), shade(o.shirt, 0.72), { p: [0, y, 0], ao: 1 });
+    torso.add(box(0.36, 0.06, 0.3), shade(o.shirt, 1.1), { p: [0, 1.13, 0.02], ao: 1 });
   }
   // Head
   torso.add(cyl(0.07, 0.08, 0.1, 8), skin, { p: [0, 1.17, 0] });
@@ -326,6 +447,7 @@ export function buildHuman(o: HumanOpts): Human {
     pivot.position.set(sx * (o.dress ? 0.22 : 0.24), 1.08, 0);
     const mb = new MB();
     mb.add(cyl(0.065, 0.06, 0.38, 8), o.shirt, { p: [0, -0.19, 0] });
+    for (const y of [-0.12, -0.26]) mb.add(cyl(0.068, 0.066, 0.025, 8), shade(o.shirt, 0.72), { p: [0, y, 0], ao: 1 });
     mb.add(sph(0.07, 8, 6), skin, { p: [0, -0.41, 0] });
     pivot.add(mb.mesh());
     pivot.rotation.z = sx * 0.12;
@@ -539,43 +661,58 @@ export function buildBuilding(kind: BuildingKind, w: number, d: number): Buildin
   let smoke: THREE.Vector3 | undefined;
   switch (kind) {
     case 'barn': {
-      const bw = 3.4;
-      const bd = 2.2;
-      mb.add(box(bw, 2.0, bd), 0xc8463d, { p: [0, 1.0, 0] });
-      mb.add(box(bw + 0.08, 0.12, bd + 0.08), C.white, { p: [0, 2.0, 0] });
-      gableRoofX(mb, bw, bd, 2.0, 1.1, 0x7a4b3a, 0xc8463d, 0.25);
-      mb.add(box(1.3, 1.5, 0.08), 0x9e322b, { p: [0, 0.75, bd / 2 + 0.02] });
-      mb.add(box(1.4, 0.1, 0.1), C.white, { p: [0, 1.5, bd / 2 + 0.05] });
-      mb.add(box(0.1, 1.5, 0.1), C.white, { p: [-0.65, 0.75, bd / 2 + 0.05] });
-      mb.add(box(0.1, 1.5, 0.1), C.white, { p: [0.65, 0.75, bd / 2 + 0.05] });
-      mb.add(box(1.85, 0.08, 0.1), C.white, { p: [0, 0.75, bd / 2 + 0.06], r: [0, 0, 0.86] });
-      mb.add(box(1.85, 0.08, 0.1), C.white, { p: [0, 0.75, bd / 2 + 0.06], r: [0, 0, -0.86] });
-      mb.add(box(0.6, 0.5, 0.08), 0xfff3d0, { p: [0, 2.45, bd / 2 + 0.02] });
-      mb.add(box(0.5, 0.4, 0.09), 0xf2cf63, { p: [0, 2.42, bd / 2 + 0.03] });
-      for (const sx of [-1, 1]) {
-        mb.add(cyl(0.45, 0.45, 0.6, 10), C.hay, { p: [sx * 2.1, 0.3, 0.5], r: [Math.PI / 2, 0, 0] });
-      }
+      const bw = 4.4;
+      const bd = 2.4;
+      const red = 0xc0392b;
+      mb.add(box(bw, 2.2, bd), red, { p: [0, 1.1, 0] });
+      planks(mb, bw, 2.2, bd, 0, 0, red, 0.3);
+      for (const sx of [-1, 1]) mb.add(box(0.14, 2.25, 0.14), C.white, { p: [sx * (bw / 2 + 0.02), 1.12, bd / 2 + 0.02], ao: 0.9 });
+      mb.add(box(bw + 0.1, 0.12, bd + 0.1), C.white, { p: [0, 2.2, 0], ao: 1 });
+      gableRoofX(mb, bw, bd, 2.2, 1.3, 0xc9483a, red, 0.3);
+      mb.add(box(1.5, 1.6, 0.08), 0x8e2a20, { p: [0, 0.8, bd / 2 + 0.03] });
+      mb.add(box(1.6, 0.1, 0.12), C.white, { p: [0, 1.62, bd / 2 + 0.06], ao: 1 });
+      for (const sx of [-0.75, 0, 0.75]) mb.add(box(0.1, 1.6, 0.12), C.white, { p: [sx, 0.8, bd / 2 + 0.06], ao: 1 });
+      mb.add(box(1.75, 0.08, 0.1), C.white, { p: [-0.37, 0.8, bd / 2 + 0.08], r: [0, 0, 1.13], ao: 1 });
+      mb.add(box(1.75, 0.08, 0.1), C.white, { p: [0.37, 0.8, bd / 2 + 0.08], r: [0, 0, -1.13], ao: 1 });
+      mb.add(box(0.8, 0.6, 0.08), C.white, { p: [0, 2.65, bd / 2 + 0.02], ao: 1 });
+      mb.add(box(0.66, 0.48, 0.09), 0x5a3a20, { p: [0, 2.65, bd / 2 + 0.03], ao: 1 });
+      mb.add(box(0.6, 0.25, 0.3), 0xe6bf5a, { p: [0, 2.5, bd / 2 + 0.05], ao: 1 });
+      mb.add(box(0.9, 0.5, 0.06), 0x7a5230, { p: [bw / 2 - 0.75, 1.75, bd / 2 + 0.05] });
+      mb.add(box(0.5, 0.25, 0.07), 0xfff1d6, { p: [bw / 2 - 0.75, 1.75, bd / 2 + 0.06], ao: 1 });
+      mb.add(box(0.12, 0.3, 0.12), 0x2f2f2f, { p: [-bw / 2 + 0.6, 1.9, bd / 2 + 0.12], ao: 1 });
+      mb.add(box(0.09, 0.2, 0.09), 0xffd27a, { p: [-bw / 2 + 0.6, 1.9, bd / 2 + 0.13], ao: 1 });
+      addHayBale(mb, -bw / 2 - 0.8, 0.3, 0.2);
+      addHayBale(mb, -bw / 2 - 0.75, 0.25, 0.2, 0.55);
+      addHayBale(mb, bw / 2 + 0.8, 0.4, -0.3);
       break;
     }
     case 'coop': {
-      mb.add(box(2.0, 1.2, 1.4), 0xf2c57c, { p: [0, 1.0, 0] });
-      for (let i = 0; i < 4; i++) mb.add(box(0.12, 0.4, 0.12), C.woodD, { p: [i < 2 ? -0.85 : 0.85, 0.2, i % 2 ? -0.55 : 0.55] });
-      gableRoofX(mb, 2.0, 1.4, 1.6, 0.7, 0xd9534f, 0xf2c57c, 0.2);
-      mb.add(box(0.5, 0.6, 0.06), 0x8a5a33, { p: [0.4, 0.9, 0.72] });
-      mb.add(box(0.5, 0.06, 1.0), C.woodL, { p: [0.4, 0.3, 1.1], r: [0.5, 0, 0] });
-      windowPane(mb, -0.45, 1.05, 0.71, 0.4, 0.35);
+      const wood = 0xd9a36a;
+      mb.add(box(2.2, 1.3, 1.5), wood, { p: [0, 1.05, 0] });
+      planks(mb, 2.2, 1.3, 1.5, 0, 0, wood, 0.26);
+      for (let i = 0; i < 4; i++) mb.add(box(0.14, 0.45, 0.14), C.woodD, { p: [i < 2 ? -0.95 : 0.95, 0.22, i % 2 ? -0.6 : 0.6] });
+      gableRoofX(mb, 2.2, 1.5, 1.7, 0.75, 0xd9483a, wood, 0.22);
+      mb.add(box(0.5, 0.6, 0.06), 0x7a4a26, { p: [0.45, 0.95, 0.77] });
+      mb.add(box(0.5, 0.06, 1.1), C.woodL, { p: [0.45, 0.35, 1.2], r: [0.5, 0, 0] });
+      for (let i = 0; i < 4; i++) mb.add(box(0.5, 0.03, 0.04), C.woodD, { p: [0.45, 0.42 - i * 0.12, 0.85 + i * 0.22], r: [0.5, 0, 0], ao: 1 });
+      windowPane(mb, -0.5, 1.15, 0.77, 0.4, 0.35);
+      addHayBale(mb, -1.6, 0.3, 0.4);
       break;
     }
     case 'shed': {
-      mb.add(box(2.6, 1.6, 1.6), 0xc49a6c, { p: [0, 0.8, 0] });
-      for (let i = 0; i < 6; i++) mb.add(box(0.04, 1.6, 1.62), 0xa77d50, { p: [-1.1 + i * 0.44, 0.8, 0] });
-      gableRoofX(mb, 2.6, 1.6, 1.6, 0.8, 0x4f7cac, 0xc49a6c, 0.22);
-      mb.add(box(0.9, 1.2, 0.06), 0x7a5230, { p: [0, 0.6, 0.82] });
+      const wood = 0xc49a6c;
+      mb.add(box(2.8, 1.7, 1.7), wood, { p: [0, 0.85, 0] });
+      planks(mb, 2.8, 1.7, 1.7, 0, 0, wood, 0.3);
+      gableRoofX(mb, 2.8, 1.7, 1.7, 0.85, 0x4f7cac, wood, 0.25);
+      mb.add(box(1.0, 1.25, 0.06), 0x6e4a2a, { p: [0, 0.62, 0.87] });
+      mb.add(box(1.1, 0.08, 0.1), C.white, { p: [0, 1.27, 0.9], ao: 1 });
+      mb.add(box(1.25, 0.07, 0.1), C.white, { p: [0, 0.62, 0.91], r: [0, 0, 0.85], ao: 1 });
+      addHayBale(mb, 1.9, 0.3, 0.3);
       break;
     }
     case 'creamery': {
       mb.add(box(w - 0.6, 2.0, d - 1.2), 0xfdf6e8, { p: [0, 1.0, -0.4] });
-      mb.add(box(w - 0.5, 0.25, d - 1.1), 0xd7c4a3, { p: [0, 0.12, -0.4] });
+      planks(mb, w - 0.6, 2.0, d - 1.2, 0, -0.4, 0xfdf6e8, 0.4);
       gableRoofX(mb, w - 0.6, d - 1.2, 2.0, 1.0, 0x4f86c6, 0xfdf6e8, 0.3);
       mb.add(box(0.8, 1.3, 0.06), 0x6a8caf, { p: [0, 0.65, d / 2 - 0.98] });
       windowPane(mb, -1.25, 1.2, d / 2 - 0.98, 0.55, 0.55);
@@ -589,6 +726,7 @@ export function buildBuilding(kind: BuildingKind, w: number, d: number): Buildin
     }
     case 'loom': {
       mb.add(box(w - 0.6, 2.0, d - 1.2), 0xe9dcf5, { p: [0, 1.0, -0.4] });
+      planks(mb, w - 0.6, 2.0, d - 1.2, 0, -0.4, 0xe9dcf5, 0.4);
       gableRoofX(mb, w - 0.6, d - 1.2, 2.0, 1.0, 0x8a5fc7, 0xe9dcf5, 0.3);
       mb.add(box(0.8, 1.3, 0.06), 0x7a5230, { p: [0, 0.65, d / 2 - 0.98] });
       windowPane(mb, -1.25, 1.2, d / 2 - 0.98, 0.6, 0.6);
@@ -601,7 +739,8 @@ export function buildBuilding(kind: BuildingKind, w: number, d: number): Buildin
     }
     case 'press': {
       mb.add(box(w - 1.0, 1.8, d - 1.4), 0xc68b59, { p: [0, 0.9, -0.5] });
-      for (let i = 0; i < 6; i++) mb.add(box(0.05, 1.8, d - 1.38), 0xa87043, { p: [-1.5 + i * 0.6, 0.9, -0.5] });
+      planks(mb, w - 1.0, 1.8, d - 1.4, 0, -0.5, 0xc68b59, 0.3);
+      addCrate(mb, w / 2 - 0.4, d / 2 - 1.0, 0.5);
       gableRoofX(mb, w - 1.0, d - 1.4, 1.8, 0.9, 0x6d8a3d, 0xc68b59, 0.3);
       for (let i = 0; i < 6; i++) {
         mb.add(box((w - 0.8) / 6, 0.08, 0.9), i % 2 ? 0xffffff : 0xff9f43, { p: [-(w - 0.8) / 2 + (w - 0.8) / 12 + (i * (w - 0.8)) / 6, 1.7, d / 2 - 1.1], r: [0.35, 0, 0] });
@@ -634,6 +773,7 @@ export function buildBuilding(kind: BuildingKind, w: number, d: number): Buildin
     case 'bakery': {
       mb.add(box(w - 0.6, 2.0, d - 1.2), 0xe8a87c, { p: [0, 1.0, -0.4] });
       for (let i = 0; i < 5; i++) mb.add(box(w - 0.58, 0.04, d - 1.18), 0xd18b62, { p: [0, 0.3 + i * 0.38, -0.4] });
+      planks(mb, w - 0.6, 2.0, d - 1.2, 0, -0.4, 0xe8a87c, 0.6);
       gableRoofX(mb, w - 0.6, d - 1.2, 2.0, 1.0, 0x8b4a2b, 0xe8a87c, 0.3);
       mb.add(box(0.8, 1.3, 0.06), 0x6b3a1f, { p: [0, 0.65, d / 2 - 0.98] });
       windowPane(mb, -1.25, 1.2, d / 2 - 0.98, 0.6, 0.5);
@@ -699,9 +839,10 @@ export function buildStall(awning: number): THREE.Object3D {
 
 export function buildTrough(len = 1.6): THREE.Mesh {
   const mb = new MB();
-  mb.add(box(len, 0.35, 0.7), C.wood, { p: [0, 0.25, 0] });
-  mb.add(box(len - 0.12, 0.05, 0.58), 0x5a3a20, { p: [0, 0.41, 0] });
-  for (const sx of [-1, 1]) mb.add(box(0.12, 0.2, 0.75), C.woodD, { p: [sx * (len / 2 - 0.1), 0.1, 0] });
+  mb.add(box(len, 0.45, 0.8), 0xa8743f, { p: [0, 0.3, 0] });
+  mb.add(box(len - 0.16, 0.05, 0.64), 0x5a3a20, { p: [0, 0.5, 0], ao: 1 });
+  for (const sz of [-1, 1]) mb.add(box(len + 0.04, 0.08, 0.1), 0x8a5a2e, { p: [0, 0.52, sz * 0.38], ao: 1 });
+  for (const sx of [-1, 1]) mb.add(box(0.14, 0.25, 0.9), 0x7a4b25, { p: [sx * (len / 2 - 0.1), 0.12, 0] });
   return mb.mesh(true, true);
 }
 
@@ -721,18 +862,20 @@ export function buildBin(): THREE.Mesh {
   return mb.mesh(true, false);
 }
 
-export function fenceLine(mb: MB, x1: number, z1: number, x2: number, z2: number, color = 0xf5ead6, gap?: [number, number]) {
+export function fenceLine(mb: MB, x1: number, z1: number, x2: number, z2: number, color = 0xa8743f, gap?: [number, number]) {
   const dx = x2 - x1;
   const dz = z2 - z1;
   const len = Math.hypot(dx, dz);
-  const n = Math.max(1, Math.round(len / 1.1));
+  const n = Math.max(1, Math.round(len / 1.2));
   const ang = Math.atan2(dx, dz);
+  const post = shade(color, 0.8);
   for (let i = 0; i <= n; i++) {
     const t = i / n;
+    if (gap && t > gap[0] + 0.01 && t < gap[1] - 0.01) continue;
     const x = x1 + dx * t;
     const z = z1 + dz * t;
-    mb.add(box(0.14, 0.75, 0.14), color, { p: [x, 0.375, z] });
-    mb.add(cone(0.1, 0.12, 4), color, { p: [x, 0.81, z], r: [0, Math.PI / 4, 0] });
+    mb.add(box(0.18, 0.9, 0.18), post, { p: [x, 0.45, z], r: [0, ang, 0] });
+    mb.add(box(0.22, 0.06, 0.22), shade(color, 0.7), { p: [x, 0.92, z], r: [0, ang, 0], ao: 1 });
   }
   const segs: [number, number][] = gap ? [[0, gap[0]], [gap[1], 1]] : [[0, 1]];
   for (const [a, b] of segs) {
@@ -740,7 +883,8 @@ export function fenceLine(mb: MB, x1: number, z1: number, x2: number, z2: number
     const l = len * (b - a);
     const cx = x1 + dx * ((a + b) / 2);
     const cz = z1 + dz * ((a + b) / 2);
-    for (const y of [0.32, 0.6]) mb.add(box(0.06, 0.1, l), color, { p: [cx, y, cz], r: [0, ang, 0] });
+    mb.add(box(0.08, 0.16, l), color, { p: [cx, 0.36, cz], r: [0, ang, 0], ao: 0.85 });
+    mb.add(box(0.08, 0.16, l), shade(color, 1.08), { p: [cx, 0.7, cz], r: [0, ang, 0], ao: 0.85 });
   }
 }
 
@@ -795,34 +939,42 @@ export function plotGeo(kind: 'grass' | 'tuft' | 'wheat' | 'carrot' | 'tree' | '
         });
       }
       break;
-    case 'grass':
-      for (let i = 0; i < 11; i++) {
-        const a = (i / 11) * Math.PI * 2 + i;
-        const r = i < 2 ? 0.08 : 0.32;
-        const hgt = 0.7 + (i % 4) * 0.12;
-        mb.add(cone(0.12, hgt, 4), i % 3 === 0 ? 0xb4ec6a : i % 3 === 1 ? 0x93dd55 : 0x7ccf46, {
-          p: [Math.cos(a) * r, hgt / 2, Math.sin(a) * r],
-          r: [Math.sin(a) * 0.3, 0, Math.cos(a) * 0.3],
+    case 'grass': {
+      const greens = [0x9bdc4f, 0x7cc83f, 0x5fae33, 0xb2e86a];
+      for (let i = 0; i < 22; i++) {
+        const a = i * 2.39996;
+        const r = 0.05 + (i / 22) * 0.38;
+        const hgt = 0.75 + ((i * 7) % 5) * 0.09 - r * 0.4;
+        const lean = 0.25 + r * 0.6;
+        mb.add(cone(0.075, hgt, 3), greens[i % 4], {
+          p: [Math.cos(a) * r, hgt / 2 - 0.02, Math.sin(a) * r],
+          r: [Math.sin(a) * lean, a, -Math.cos(a) * lean],
           flat: true,
+          ao: 0.45,
         });
       }
-      mb.add(sph(0.07, 6, 4), 0xffffff, { p: [0.18, 0.62, 0.1] });
-      mb.add(sph(0.035, 6, 4), 0xffd23f, { p: [0.18, 0.67, 0.1] });
-      mb.add(sph(0.06, 6, 4), 0xffe14d, { p: [-0.2, 0.55, -0.12] });
+      mb.add(sph(0.07, 6, 4), 0xffffff, { p: [0.22, 0.6, 0.14], ao: 1 });
+      mb.add(sph(0.035, 6, 4), 0xffd23f, { p: [0.22, 0.65, 0.16], ao: 1 });
       break;
+    }
     case 'wheat':
-      for (let i = 0; i < 6; i++) {
-        const x = ((i % 3) - 1) * 0.22;
-        const z = (Math.floor(i / 3) - 0.5) * 0.3;
-        mb.add(cyl(0.018, 0.018, 0.6, 4), 0xd9b44a, { p: [x, 0.3, z] });
-        mb.add(capsule(0.05, 0.16), 0xf2cf63, { p: [x, 0.7, z] });
+      for (let i = 0; i < 9; i++) {
+        const x = ((i % 3) - 1) * 0.2 + ((i * 13) % 5) * 0.012;
+        const z = (Math.floor(i / 3) - 1) * 0.2;
+        const h = 0.75 + (i % 3) * 0.08;
+        mb.add(cyl(0.016, 0.02, h, 4), 0xd2a83c, { p: [x, h / 2, z], r: [x * 0.4, 0, -z * 0.4] });
+        mb.add(capsule(0.045, 0.2), i % 2 ? 0xf3c94b : 0xe8b838, { p: [x * 1.15, h + 0.08, z * 1.15], r: [x * 0.6, 0, -z * 0.6], ao: 0.8 });
+        mb.add(box(0.14, 0.015, 0.04), 0xb9a03a, { p: [x + 0.05, h * 0.5, z], r: [0, i, 0.5], ao: 1 });
       }
       break;
     case 'carrot':
       for (let i = 0; i < 3; i++) {
         const x = (i - 1) * 0.25;
-        mb.add(cone(0.07, 0.12, 6), 0xff8c2e, { p: [x, 0.06, 0], r: [Math.PI, 0, 0] });
-        for (let j = 0; j < 3; j++) mb.add(cone(0.05, 0.3, 4), 0x5fb83c, { p: [x + (j - 1) * 0.04, 0.27, (j - 1) * 0.04], r: [(j - 1) * 0.3, 0, (j - 1) * 0.3] });
+        mb.add(cone(0.08, 0.14, 6), 0xff7f1e, { p: [x, 0.07, 0], r: [Math.PI, 0, 0], ao: 1 });
+        for (let j = 0; j < 5; j++) {
+          const a = j * 1.26;
+          mb.add(cone(0.05, 0.38, 3), j % 2 ? 0x5fb83c : 0x4a9e2c, { p: [x + Math.cos(a) * 0.05, 0.3, Math.sin(a) * 0.05], r: [Math.sin(a) * 0.45, a, -Math.cos(a) * 0.45], flat: true });
+        }
       }
       break;
     case 'tree':

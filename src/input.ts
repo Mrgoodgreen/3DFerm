@@ -54,6 +54,7 @@ export class Input {
     this.oy = e.clientY;
     this.jx = 0;
     this.jy = 0;
+    this.joy.classList.remove('idle');
     this.joy.style.left = this.ox + 'px';
     this.joy.style.top = this.oy + 'px';
     this.joy.style.display = 'block';
@@ -85,11 +86,25 @@ export class Input {
     this.release();
   }
 
+  private idle = false;
+
+  /** On touch devices a faint joystick rests in the corner to show how to move. */
+  setIdleJoystick(on: boolean) {
+    this.idle = on;
+    if (this.pointerId === null) this.release();
+  }
+
   release() {
     this.pointerId = null;
     this.jx = 0;
     this.jy = 0;
-    this.joy.style.display = 'none';
+    this.knob.style.transform = 'translate(0px,0px)';
+    if (this.idle) {
+      this.joy.classList.add('idle');
+      this.joy.style.left = 'calc(80px + env(safe-area-inset-left, 0px))';
+      this.joy.style.top = `${window.innerHeight - 100}px`;
+      this.joy.style.display = 'block';
+    } else this.joy.style.display = 'none';
   }
 
   update() {

@@ -12,6 +12,7 @@ import {
   fenceLine,
   animateAnimal,
   addFlower,
+  addMilkCan,
   type Animal,
   type BuildingModel,
 } from '../render/models';
@@ -21,6 +22,9 @@ import type { Label } from './labels';
 import type { GameCtx } from './ctx';
 import type { Collider } from '../render/world';
 import { t } from '../i18n';
+import { ZoneMarker } from './zone';
+
+export const ZONE_OFFSET = 1.6;
 
 interface Walker {
   a: Animal;
@@ -57,23 +61,30 @@ export class Station {
   private outLabel: Label;
   private nameLabel: Label;
   producing = false;
+  inMarker: ZoneMarker | null = null;
+  outMarker: ZoneMarker;
+  private bubbles: Label[] = [];
 
   constructor(
     public def: StationDef,
     private ctx: GameCtx,
   ) {
     const { x, z, w, d } = def;
-    this.inZone = new THREE.Vector3(x - w / 2 + 1.2, 0, z + d / 2 + 1.0);
-    this.outZone = new THREE.Vector3(x + w / 2 - 1.2, 0, z + d / 2 + 1.0);
-    if (def.kind === 'building' && !def.input) this.outZone.set(x, 0, z + d / 2 + 1.0);
+    const zf = z + d / 2 + ZONE_OFFSET;
+    this.inZone = new THREE.Vector3(x - w / 2 + 1.3, 0, zf);
+    this.outZone = new THREE.Vector3(x + w / 2 - 1.3, 0, zf);
+    if (def.kind === 'building' && !def.input) this.outZone.set(x, 0, zf);
 
     this.building = buildBuilding(def.building, w, d);
     this.buildingRoot.add(this.building.mesh);
     this.group.add(this.buildingRoot);
 
     const statics = new MB();
+    let inDisplay: THREE.Vector3;
+    let outDisplay: THREE.Vector3;
     if (def.kind === 'pen') {
-      const bd = def.building === 'barn' ? 2.2 : def.building === 'coop' ? 1.5 : 1.6;
+      const bd = def.building === 'barn' ? 2.4 : def.building === 'coop' ? 1.6 : 1.7;
+      const bwHalf = def.building === 'barn' ? 2.35 : def.building === 'coop' ? 1.25 : 1.5;
       this.buildingRoot.position.set(x, 0, z - d / 2 - bd / 2 - 0.1);
       const x1 = x - w / 2;
       const x2 = x + w / 2;
@@ -82,55 +93,57 @@ export class Station {
       fenceLine(statics, x1, z1, x1, z2);
       fenceLine(statics, x2, z1, x2, z2);
       fenceLine(statics, x1, z2, x2, z2);
-      fenceLine(statics, x1, z1, x - 2.0, z1);
-      fenceLine(statics, x + 2.0, z1, x2, z1);
-      const trough = buildTrough(1.8);
-      trough.position.set(this.inZone.x, 0, z2 - 0.55);
+      fenceLine(statics, x1, z1, x - bwHalf, z1);
+      fenceLine(statics, x + bwHalf, z1, x2, z1);
+      const trough = buildTrough(2.0);
+      trough.position.set(this.inZone.x, 0, z2 - 0.6);
       this.group.add(trough);
-      this.inPile = new ItemPile(def.input!, def.inCap, 4, 2, 0.38, 0.24, ITEMS[def.input!].h * 0.75);
-      this.inPile.mesh.position.set(this.inZone.x, 0.42, z2 - 0.55);
+      this.inPile = new ItemPile(def.input!, def.inCap, 4, 2, 0.42, 0.26, ITEMS[def.input!].h * 0.75);
+      this.inPile.mesh.position.set(this.inZone.x, 0.5, z2 - 0.6);
       this.inPile.mesh.scale.setScalar(0.8);
+      inDisplay = new THREE.Vector3(this.inZone.x, 0, z2 - 0.6);
+      outDisplay = new THREE.Vector3(this.outZone.x, 0, z2 - 0.75);
       this.collider = { x1: x1 - 0.15, z1: z1 - bd - 0.3, x2: x2 + 0.15, z2: z2 + 0.15 };
     } else {
       this.buildingRoot.position.set(x, 0, z);
+      const front = z + d / 2 + 0.05;
+      inDisplay = new THREE.Vector3(this.inZone.x, 0, front);
+      outDisplay = new THREE.Vector3(this.outZone.x, 0, front);
       if (def.input) {
-        const crate = buildPallet(1.5, 1.2);
-        crate.position.copy(this.inZone);
+        const crate = buildPallet(1.5, 1.0);
+        crate.position.copy(inDisplay);
         this.group.add(crate);
-        this.inPile = new ItemPile(def.input, def.inCap, 3, 3, 0.45, 0.38, ITEMS[def.input].h);
-        this.inPile.mesh.position.set(this.inZone.x, 0.18, this.inZone.z);
+        this.inPile = new ItemPile(def.input, def.inCap, 3, 2, 0.45, 0.42, ITEMS[def.input].h);
+        this.inPile.mesh.position.set(inDisplay.x, 0.18, inDisplay.z);
       }
-      this.collider = { x1: x - w / 2 + 0.2, z1: z - d / 2, x2: x + w / 2 - 0.2, z2: z + d / 2 - 0.6 };
+      this.collider = { x1: x - w / 2 + 0.2, z1: z - d / 2, x2: x + w / 2 - 0.2, z2: z + d / 2 + 0.5 };
       if (def.building === 'hives') {
-        for (let i = 0; i < 10; i++) addFlower(statics, x - w / 2 + 0.3 + (i % 5) * 0.3, z + d / 2 - 0.2 + Math.floor(i / 5) * 0.3, [0xff6b9a, 0xffd166, 0x9b5de5][i % 3]);
+        for (let i = 0; i < 10; i++) addFlower(statics, x - w / 2 + 0.3 + (i % 5) * 0.3, z - d / 2 + 0.2 + Math.floor(i / 5) * 0.3, [0xff6b9a, 0xffd166, 0x9b5de5][i % 3]);
         for (let i = 0; i < 10; i++) addFlower(statics, x + w / 2 - 1.5 + (i % 5) * 0.3, z - d / 2 + 0.2 + Math.floor(i / 5) * 0.3, [0xffffff, 0xff8c42, 0xff6b9a][i % 3]);
       }
     }
-    const pallet = buildPallet(1.5, 1.2);
-    pallet.position.copy(this.outZone);
+    const pallet = buildPallet(1.5, 1.0);
+    pallet.position.copy(outDisplay);
     this.group.add(pallet);
-    this.outPile = new ItemPile(def.output, def.outCap, 3, 3, 0.45, 0.4, ITEMS[def.output].h);
-    this.outPile.mesh.position.set(this.outZone.x, 0.18, this.outZone.z);
+    this.outPile = new ItemPile(def.output, def.outCap, 3, 2, 0.45, 0.42, ITEMS[def.output].h);
+    this.outPile.mesh.position.set(outDisplay.x, 0.18, outDisplay.z);
     this.group.add(this.outPile.mesh);
     if (this.inPile) this.group.add(this.inPile.mesh);
-
-    // Zone markers
-    const zoneMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false });
-    for (const zp of def.input ? [this.inZone, this.outZone] : [this.outZone]) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.2, 28), zoneMat);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(zp.x, 0.03, zp.z);
-      this.group.add(ring);
+    if (def.animal === 'cow') {
+      addMilkCan(statics, outDisplay.x + 1.2, outDisplay.z - 0.1);
+      addMilkCan(statics, outDisplay.x + 1.25, outDisplay.z + 0.45);
     }
+
+    if (def.input) this.inMarker = new ZoneMarker(this.group, this.inZone, ITEMS[def.input].icon, 'in');
+    this.outMarker = new ZoneMarker(this.group, this.outZone, ITEMS[def.output].icon, 'out');
     statics.add(box(0.01, 0.01, 0.01), 0xffffff);
     this.group.add(statics.mesh(true, true));
 
-    const lblY = def.kind === 'pen' ? 1.5 : 1.7;
     if (def.input) {
-      this.inLabel = ctx.labels.add('', new THREE.Vector3(this.inZone.x, lblY, this.inZone.z - 0.6), 'st-label');
+      this.inLabel = ctx.labels.add('', new THREE.Vector3(inDisplay.x, def.kind === 'pen' ? 1.5 : 1.6, inDisplay.z), 'st-label');
     }
-    this.outLabel = ctx.labels.add('', new THREE.Vector3(this.outZone.x, 2.3, this.outZone.z), 'max-label');
-    const nameY = def.kind === 'pen' ? 3.6 : 4.2;
+    this.outLabel = ctx.labels.add('', new THREE.Vector3(outDisplay.x, 2.1, outDisplay.z), 'max-label');
+    const nameY = def.kind === 'pen' ? 4.2 : 4.4;
     this.nameLabel = ctx.labels.add(`${ITEMS[def.output].icon}`, new THREE.Vector3(x, nameY, def.kind === 'pen' ? z - d / 2 - 1 : z), 'icon-label');
     this.group.visible = false;
     this.setLabelsVisible(false);
@@ -174,6 +187,11 @@ export class Station {
     a.root.position.set(x, 0, z);
     this.group.add(a.root);
     this.walkers.push({ a, x, z, tx: x, tz: z, wait: Math.random() * 2, rot: Math.random() * 6, jump: 0.5 });
+    if (d.input) {
+      const b = this.ctx.labels.add(ITEMS[d.input].icon, new THREE.Vector3(), 'bubble think');
+      b.visible = false;
+      this.bubbles.push(b);
+    }
   }
 
   canAccept() {
@@ -206,8 +224,8 @@ export class Station {
   refreshLabels() {
     if (this.inLabel && this.def.input) {
       const icon = ITEMS[this.def.input].icon;
-      this.inLabel.setHTML(`${icon} ${this.inCount}/${this.def.inCap}`);
       const empty = this.inCount === 0;
+      this.inLabel.setHTML(empty ? `${icon} ${t('need_feed', { item: t('item_' + this.def.input) })}` : `${icon} ${this.inCount}/${this.def.inCap}`);
       this.inLabel.setClass('st-label' + (empty ? ' empty' : this.inCount >= this.def.inCap ? ' full' : ''));
     }
     const full = this.outCount >= this.def.outCap;
@@ -344,6 +362,16 @@ export class Station {
       );
       b.m.rotation.y = -b.p;
     }
+    const hungry = !!d.input && this.inCount === 0;
+    const headY = d.animal === 'cow' ? 1.95 : d.animal === 'sheep' ? 1.7 : 1.05;
+    this.walkers.forEach((wk, i) => {
+      const b = this.bubbles[i];
+      if (!b) return;
+      b.visible = hungry && i < 3;
+      if (hungry) b.pos.set(wk.x, headY, wk.z);
+    });
+    this.inMarker?.update(dt);
+    this.outMarker.update(dt);
     this.inPile?.update(dt);
     this.outPile.update(dt);
   }

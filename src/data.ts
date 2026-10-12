@@ -160,7 +160,7 @@ const field = (id: string) => FIELDS.find((f) => f.id === id)!;
 const shelf = (item: ItemId) => SHELVES.find((s) => s.item === item)!;
 const stPad = (id: string): [number, number] => {
   const s = station(id);
-  return [s.x, s.z + s.d / 2 + 1.0];
+  return [s.x, s.z + s.d / 2 + 1.6];
 };
 const animalPad = (id: string): [number, number] => {
   const s = station(id);
@@ -170,7 +170,7 @@ const fieldPad = (id: string): [number, number] => {
   const f = field(id);
   return [f.x, f.z];
 };
-const shelfPad = (item: ItemId): [number, number] => [shelf(item).x, SHELF_Z - 2.5];
+const shelfPad = (item: ItemId): [number, number] => [shelf(item).x, SHELF_Z - 2.9];
 
 function u(
   id: string,
@@ -279,12 +279,12 @@ export interface SkinDef {
   hair: number;
 }
 export const SKINS: SkinDef[] = [
-  { id: 'classic', cost: 0, ads: 0, shirt: 0xfff1e0, pants: 0x4f86c6, hat: 'straw', hatColor: 0xf3d27a, ribbon: 0xe8505b, dress: false, hair: 0xe0712c },
-  { id: 'rose', cost: 600, ads: 0, shirt: 0xffb6c8, pants: 0xff7aa2, hat: 'straw', hatColor: 0xffe0ea, ribbon: 0xff5c8a, dress: true, hair: 0xe0712c },
-  { id: 'meadow', cost: 0, ads: 3, shirt: 0xfffbe6, pants: 0x6ab04c, hat: 'flowers', hatColor: 0x8bd36b, ribbon: 0xffd166, dress: true, hair: 0xe0712c },
-  { id: 'rain', cost: 3000, ads: 0, shirt: 0xffd23f, pants: 0x3d5a80, hat: 'hood', hatColor: 0xffd23f, ribbon: 0xffd23f, dress: false, hair: 0xe0712c },
-  { id: 'mechanic', cost: 8000, ads: 0, shirt: 0xffffff, pants: 0xe76f51, hat: 'cap', hatColor: 0xe76f51, ribbon: 0xffffff, dress: false, hair: 0xe0712c },
-  { id: 'fair', cost: 20000, ads: 0, shirt: 0xffffff, pants: 0xd62839, hat: 'kokoshnik', hatColor: 0xd62839, ribbon: 0xffc531, dress: true, hair: 0xe0712c },
+  { id: 'classic', cost: 0, ads: 0, shirt: 0xd9473f, pants: 0x3f6fb5, hat: 'straw', hatColor: 0xf3d27a, ribbon: 0xe8505b, dress: false, hair: 0x8b4a23 },
+  { id: 'rose', cost: 600, ads: 0, shirt: 0xffb6c8, pants: 0xff7aa2, hat: 'straw', hatColor: 0xffe0ea, ribbon: 0xff5c8a, dress: true, hair: 0x8b4a23 },
+  { id: 'meadow', cost: 0, ads: 3, shirt: 0xfffbe6, pants: 0x6ab04c, hat: 'flowers', hatColor: 0x8bd36b, ribbon: 0xffd166, dress: true, hair: 0x8b4a23 },
+  { id: 'rain', cost: 3000, ads: 0, shirt: 0xffd23f, pants: 0x3d5a80, hat: 'hood', hatColor: 0xffd23f, ribbon: 0xffd23f, dress: false, hair: 0x8b4a23 },
+  { id: 'mechanic', cost: 8000, ads: 0, shirt: 0xffffff, pants: 0xe76f51, hat: 'cap', hatColor: 0xe76f51, ribbon: 0xffffff, dress: false, hair: 0x8b4a23 },
+  { id: 'fair', cost: 20000, ads: 0, shirt: 0xffffff, pants: 0xd62839, hat: 'kokoshnik', hatColor: 0xd62839, ribbon: 0xffc531, dress: true, hair: 0x8b4a23 },
 ];
 
 export type QuestType = 'harvest' | 'feed' | 'collect' | 'sell' | 'unlock' | 'earn' | 'upgrade' | 'helpers';
