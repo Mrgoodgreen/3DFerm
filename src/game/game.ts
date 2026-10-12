@@ -41,6 +41,7 @@ import { Helper, type HelperEnv } from './helper';
 import { CustomerManager, type CustomerEnv } from './customers';
 import type { GameCtx } from './ctx';
 import { ZoneMarker } from './zone';
+import { Barks } from './barks';
 import { Input } from '../input';
 import { UI, el } from '../ui/ui';
 import { type SaveData } from '../state';
@@ -55,6 +56,8 @@ interface QuestView {
   chapter: string;
   text: string;
 }
+
+const PRODUCT_BARKS: ItemId[] = ['egg', 'cheese', 'carrot', 'apple', 'juice', 'wool', 'sweater', 'flour', 'bread', 'honey'];
 
 const IAP_COINS: Record<string, number> = { coins_small: 5000, coins_medium: 30000, coins_big: 150000 };
 
@@ -111,6 +114,12 @@ export class Game {
   private shownCoins = -1;
   private completingQuest = false;
   private shownBasket = -1;
+  barks: Barks;
+  private barkT = 0;
+  private idleT = 0;
+  private emptyFor = new Map<string, number>();
+  private shelfEmptyFor = new Map<string, number>();
+  private fullFor = 0;
   private sessionStart = performance.now();
   private lastFrame = performance.now();
 
@@ -185,6 +194,7 @@ export class Game {
     this.ripeRing.visible = false;
     this.stage.scene.add(this.ripeRing);
     this.maxLabel = this.labels.add(t('max'), new THREE.Vector3(), 'max-label');
+    this.barks = new Barks(this.labels, s.said);
     this.maxLabel.visible = false;
 
     this.restore();
@@ -693,6 +703,15 @@ export class Game {
   }
 
   private chapterComplete(id: string, reward: number) {
+    const def = CHAPTERS.find((c) => c.id === id);
+    if (def?.outro.length) {
+      this.ui.enqueue(() =>
+        this.ui.dialog(
+          def.outro.map((sp, i) => ({ name: t('sp_' + sp), text: t(`${id}_o${i}`), portrait: this.portraits[sp] || '🙂', right: sp === 'arina' })),
+          () => undefined,
+        ),
+      );
+    }
     this.ui.enqueue(() => {
       let watched = false;
       const body = el(
@@ -756,7 +775,10 @@ export class Game {
     } else lines.push({ sp: 'petya', key: 'endless_0' });
     this.ui.dialog(
       lines.map((l) => ({ name: t('sp_' + l.sp), text: t(l.key), portrait: this.portraits[l.sp] || '🙂', right: l.sp === 'arina' })),
-      () => this.save(),
+      () => {
+        if (s.ch === 0) this.barks.say(this.time, 't_start', { once: true, urgent: true });
+        this.save();
+      },
     );
   }
 
@@ -975,6 +997,7 @@ export class Game {
       maxCustomers: 3 + activeShelves.length * 2,
       priceFor: (item) => ITEMS[item].price * this.priceMult(),
       onSale: (shelf, item, coins) => {
+        if (s.ch === 0) this.barks.say(this.time, 't_first_sale', { once: true, urgent: true });
         shelf.addCoins(coins);
         s.stats.sold++;
         this.ctx.sound('coin', shelf.zone);
@@ -1003,6 +1026,7 @@ export class Game {
 
     this.fx.update(dt);
     this.updateArrow(dt);
+    this.updateBarks(dt);
 
     const full = this.player.count >= this.capacity();
     this.maxLabel.visible = full;
@@ -1039,6 +1063,78 @@ export class Game {
       this.saveT = 6;
       this.save();
     }
+  }
+
+  private firstProduct(item: ItemId) {
+    if (PRODUCT_BARKS.includes(item)) this.barks.say(this.time, 'p_' + item, { once: true, urgent: true });
+  }
+
+  private reactToUnlock(u: UnlockDef) {
+    if (u.id === 'cow2') {
+      this.barks.say(this.time, 't_after_pad', { once: true, urgent: true });
+      return;
+    }
+    if (u.kind === 'helper' && this.barks.say(this.time, 'b_helper_0', { once: true, urgent: true })) return;
+    if (u.kind === 'field' && u.target === 'carrot') return;
+    if (Math.random() < 0.5) this.barks.say(this.time, 'b_unlock', { group: 'unlock', cd: 40 }, 3);
+  }
+
+  /** Arina's remarks: first a step-by-step tutorial, then reactions to what is happening on the farm. */
+  private updateBarks(dt: number) {
+    const pl = this.player;
+    const head = new THREE.Vector3();
+    pl.topWorld(head);
+    head.y = Math.max(head.y + (pl.count >= this.capacity() ? 0.95 : 0.45), pl.pos.y + 2.35);
+    head.x = pl.pos.x;
+    head.z = pl.pos.z;
+    this.barks.update(dt, head);
+
+    const moving = Math.hypot(this.input.x, this.input.z) > 0.05;
+    this.idleT = moving ? 0 : this.idleT + dt;
+    this.barkT -= dt;
+    if (this.barkT > 0) return;
+    this.barkT = 1;
+    const time = this.time;
+    const b = this.barks;
+    const s = this.s;
+    const cows = this.stations.get('cows')!;
+
+    // Tutorial: chapter one walks the player through the whole loop.
+    const tutorial = s.ch === 0;
+    if (tutorial && pl.countOf('grass') >= 5 && !b.has('t_fed')) b.say(time, 't_go_feed', { once: true, urgent: true });
+    if (tutorial && cows.outCount > 0 && b.has('t_fed') && !b.has('t_go_sell')) b.say(time, 't_milk_ready', { once: true, urgent: true });
+    const cow2 = this.pads.get('cow2')!;
+    if (tutorial && s.q === 4 && cow2.visible && s.coins >= cow2.def.cost - cow2.paid) b.say(time, 't_pad', { once: true, urgent: true });
+    const cap = UPGRADES.find((x) => x.id === 'cap')!;
+    if (s.ch <= 2 && this.unlocked.has('cow2') && this.canBuyUpgrade(cap) && b.say(time, 't_upgrade', { once: true, urgent: true })) this.ui.highlight('upgrades', 6);
+    if (s.ch <= 3 && this.pads.get('h_grass')!.visible) b.say(time, 't_helper', { once: true });
+    if (tutorial && !this.unlocked.has('cow2')) return;
+
+    // Reactions
+    this.fullFor = pl.count >= this.capacity() ? this.fullFor + 1 : 0;
+    if (this.fullFor > 6) b.say(time, 'b_full', { group: 'full', cd: 60 }, 2);
+    for (const st of this.stations.values()) {
+      if (!st.active || !st.def.input) continue;
+      const e = st.inCount === 0 ? (this.emptyFor.get(st.def.id) || 0) + 1 : 0;
+      this.emptyFor.set(st.def.id, e);
+      if (st.def.kind === 'pen' && e > 20 && !pl.has(st.def.input)) b.say(time, 'b_hungry', { group: 'hungry', cd: 75 }, 3);
+      if (st.outCount >= st.def.outCap) b.say(time, 'b_outfull', { group: 'outfull', cd: 90, params: { icon: ITEMS[st.def.output].icon } }, 2);
+    }
+    for (const sh of this.shelves.values()) {
+      if (!sh.active) continue;
+      const e = sh.count === 0 && this.customers.waitingAt(sh) > 0 ? (this.shelfEmptyFor.get(sh.def.item) || 0) + 1 : 0;
+      this.shelfEmptyFor.set(sh.def.item, e);
+      if (e > 6) b.say(time, 'b_shelf', { group: 'shelf', cd: 60, params: { icon: ITEMS[sh.def.item].icon } }, 2);
+      if (!s.up.autocash && sh.coins >= 80 && sh.zone.distanceTo(pl.pos) > 7) b.say(time, 'b_rich', { group: 'rich', cd: 100 }, 2);
+    }
+    for (const pad of this.pads.values()) {
+      if (!pad.visible || pad.def.cost < 40) continue;
+      if (s.coins >= pad.def.cost - pad.paid) {
+        b.say(time, 'b_afford', { id: 'afford_' + pad.def.id, once: true, group: 'afford', cd: 30, params: { name: this.unlockName(pad.def) } }, 2);
+        break;
+      }
+    }
+    if (this.idleT > 22) b.say(time, 'b_idle', { group: 'idle', cd: 80 }, 6);
   }
 
   /** Zones pulse when the player can actually use them right now. */
@@ -1086,8 +1182,9 @@ export class Game {
   private showFull() {
     if (this.fullToastT > this.time) return;
     this.fullToastT = this.time + 3;
-    this.ui.toast(`🧺 ${t('stack_full')}`);
     audio.play('error');
+    this.ui.highlight('basket', 2);
+    if (!this.barks.say(this.time, 't_full', { once: true })) this.barks.say(this.time, 'b_full', { group: 'full', cd: 45 }, 2);
   }
 
   private interact(dt: number) {
@@ -1111,6 +1208,8 @@ export class Game {
         this.fx.burst(from, f.def.kind === 'tree' ? 0x5fb546 : f.def.kind === 'wheat' ? 0xf2cf63 : 0x7fd35b, 5, 2, 0.6);
         audio.play('harvest');
         this.questEvent('harvest', f.def.item);
+        if (this.s.ch === 0 && this.barks.say(this.time, 't_first_grass', { once: true, urgent: true })) this.ui.highlight('basket', 5);
+        this.firstProduct(f.def.item);
         this.harvestT = 0.07;
         break;
       }
@@ -1130,6 +1229,7 @@ export class Game {
         this.fx.fly(inp, r.pos, dest, 0.25, undefined, 0.8);
         audio.play('drop');
         this.questEvent('feed', st.def.id);
+        if (st.def.id === 'cows' && this.s.ch === 0) this.barks.say(this.time, 't_fed', { once: true, urgent: true });
         this.transferT = 0.07;
         return;
       }
@@ -1145,6 +1245,9 @@ export class Game {
         this.fx.fly(st.def.output, from, () => pl.topWorld(_v.clone()), 0.24, undefined, 0.8);
         audio.play('pick', pl.count);
         this.questEvent('collect', st.def.output);
+        if (st.def.output === 'milk') {
+          if (this.s.ch === 0) this.barks.say(this.time, 't_go_sell', { once: true, urgent: true });
+        } else this.firstProduct(st.def.output);
         this.transferT = 0.07;
         return;
       }
@@ -1230,6 +1333,7 @@ export class Game {
     if (pad.paid >= pad.def.cost - 1e-6) {
       delete this.s.pads[pad.def.id];
       this.applyUnlock(pad.def, false);
+      this.reactToUnlock(pad.def);
       this.addXP(Math.max(2, Math.round(pad.def.cost / 8)));
       this.questEvent('unlock', pad.def.id);
       this.refreshPads();

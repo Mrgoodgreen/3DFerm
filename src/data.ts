@@ -298,6 +298,7 @@ export type Speaker = 'arina' | 'granny' | 'fedor' | 'petya';
 export interface ChapterDef {
   id: string;
   lines: Speaker[];
+  outro: Speaker[];
   quests: QuestDef[];
   reward: number;
 }
@@ -308,6 +309,7 @@ export const CHAPTERS: ChapterDef[] = [
   {
     id: 'ch1',
     lines: ['granny', 'arina', 'granny'],
+    outro: ['arina', 'granny'],
     quests: [
       q('harvest', 'grass', 5, 5),
       q('feed', 'cows', 5, 5),
@@ -319,7 +321,8 @@ export const CHAPTERS: ChapterDef[] = [
   },
   {
     id: 'ch2',
-    lines: ['fedor', 'arina', 'fedor'],
+    lines: ['fedor', 'arina', 'fedor', 'arina'],
+    outro: ['fedor', 'arina'],
     quests: [
       q('unlock', 'wheat', 1, 15),
       q('harvest', 'wheat', 6, 15),
@@ -331,7 +334,8 @@ export const CHAPTERS: ChapterDef[] = [
   },
   {
     id: 'ch3',
-    lines: ['granny', 'arina'],
+    lines: ['granny', 'arina', 'granny'],
+    outro: ['arina'],
     quests: [
       q('unlock', 'cow3', 1, 30),
       q('upgrade', undefined, 2, 40),
@@ -343,6 +347,7 @@ export const CHAPTERS: ChapterDef[] = [
   {
     id: 'ch4',
     lines: ['petya', 'arina', 'petya'],
+    outro: ['petya'],
     quests: [
       q('unlock', 'creamery', 1, 60),
       q('feed', 'creamery', 5, 60),
@@ -356,6 +361,7 @@ export const CHAPTERS: ChapterDef[] = [
   {
     id: 'ch5',
     lines: ['granny', 'arina', 'granny'],
+    outro: ['granny', 'arina'],
     quests: [
       q('unlock', 'orchard', 1, 150),
       q('harvest', 'apple', 10, 150),
@@ -369,6 +375,7 @@ export const CHAPTERS: ChapterDef[] = [
   {
     id: 'ch6',
     lines: ['fedor', 'arina', 'fedor'],
+    outro: ['fedor', 'arina', 'fedor'],
     quests: [
       q('unlock', 'sheep', 1, 300),
       q('collect', 'wool', 10, 300),
@@ -380,7 +387,8 @@ export const CHAPTERS: ChapterDef[] = [
   },
   {
     id: 'ch7',
-    lines: ['granny', 'arina'],
+    lines: ['granny', 'arina', 'granny'],
+    outro: ['arina', 'granny'],
     quests: [
       q('unlock', 'mill', 1, 600),
       q('unlock', 'bakery', 1, 800),
@@ -392,6 +400,7 @@ export const CHAPTERS: ChapterDef[] = [
   {
     id: 'ch8',
     lines: ['petya', 'arina', 'petya'],
+    outro: ['arina', 'petya'],
     quests: [
       q('unlock', 'bees', 1, 1200),
       q('unlock', 'shelf_honey', 1, 1500),
@@ -402,7 +411,8 @@ export const CHAPTERS: ChapterDef[] = [
   },
   {
     id: 'ch9',
-    lines: ['fedor', 'arina', 'granny', 'arina'],
+    lines: ['fedor', 'arina', 'granny'],
+    outro: ['fedor', 'arina', 'granny'],
     quests: [q('unlock', 'fair', 1, 5000), q('earn', undefined, 30000, 5000)],
     reward: 15000,
   },

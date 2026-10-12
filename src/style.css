@@ -757,7 +757,7 @@ body {
 /* ---------- Toast ---------- */
 .toasts {
   position: absolute;
-  top: 22%;
+  bottom: calc(19% + var(--safe-b));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1216,4 +1216,63 @@ body {
   :root {
     --u: 11px;
   }
+}
+
+/* ---------- Arina's speech bubble ---------- */
+.speech {
+  background: #fff;
+  color: #3d2a1a;
+  font-weight: 800;
+  font-size: 0.92em;
+  line-height: 1.25;
+  padding: 7px 12px;
+  border-radius: 16px;
+  max-width: min(62vw, 250px);
+  width: max-content;
+  white-space: normal;
+  text-align: center;
+  box-shadow: 0 3px 0 rgba(90, 60, 30, 0.25), 0 6px 14px rgba(0, 0, 0, 0.2);
+  border: 2px solid #ffe2a8;
+  position: relative;
+  opacity: 0;
+}
+.speech::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  margin-left: -8px;
+  border: 8px solid transparent;
+  border-bottom: 0;
+  border-top-color: #fff;
+}
+.speech.show {
+  animation: speech-in 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
+}
+@keyframes speech-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -80%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+.hl {
+  animation: hl-glow 0.8s ease-in-out infinite;
+}
+@keyframes hl-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 214, 80, 0.9);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 214, 80, 0);
+    transform: scale(1.08);
+  }
+}
+.act-btn.hl {
+  border-radius: 50%;
 }

@@ -37,6 +37,7 @@ export interface SaveData {
   pos: [number, number];
   reviewAsked: boolean;
   shortcutAsked: boolean;
+  said: string[];
 }
 
 export function defaultSave(): SaveData {
@@ -71,6 +72,7 @@ export function defaultSave(): SaveData {
     pos: [2, 3],
     reviewAsked: false,
     shortcutAsked: false,
+    said: [],
   };
 }
 
@@ -88,6 +90,7 @@ export function mergeSave(raw: unknown): SaveData {
   out.skins = Array.isArray(r.skins) && r.skins.length ? r.skins : ['classic'];
   out.unlocked = Array.isArray(r.unlocked) ? r.unlocked : [];
   out.stack = Array.isArray(r.stack) ? r.stack : [];
+  out.said = Array.isArray(r.said) ? r.said : [];
   if (!isFinite(out.coins) || out.coins < 0) out.coins = 0;
   out.coins = Math.floor(out.coins);
   for (const k of Object.keys(out.pads)) out.pads[k] = Math.floor(out.pads[k] || 0);

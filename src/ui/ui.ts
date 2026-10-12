@@ -153,6 +153,13 @@ export class UI {
     return b;
   }
 
+  /** Briefly draws attention to a HUD element mentioned by the tutorial. */
+  highlight(which: 'basket' | 'upgrades', sec = 4) {
+    const e = which === 'basket' ? this.basketPill : this.upgradesBtn;
+    e.classList.add('hl');
+    setTimeout(() => e.classList.remove('hl'), sec * 1000);
+  }
+
   setAvatar(url: string) {
     if (!url) return;
     this.avatar.innerHTML = '';
