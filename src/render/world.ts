@@ -53,57 +53,82 @@ export const PATHS: [number, number, number, number, number][] = [
   [HOUSE.x, 3, HOUSE.x, 10.5, 1.6],
 ];
 
-function paintGround(mobile: boolean): HTMLCanvasElement {
+function paintGround(mobile: boolean): { canvas: HTMLCanvasElement; pixels: Uint8ClampedArray; pw: number; ph: number } {
   const W = mobile ? 1024 : 2048;
   const H = Math.round((W * ID) / IW);
   const cv = document.createElement('canvas');
   cv.width = W;
   cv.height = H;
+  // CPU-backed canvas: predictable cost and a cheap pixel readback.
   const g = cv.getContext('2d', { willReadFrequently: true })!;
   const sx = W / IW;
   const px = (x: number) => (x - ISLAND.minX) * sx;
   const pz = (z: number) => (z - ISLAND.minZ) * sx;
   const r = rng(7);
-  const blades = (x1: number, z1: number, x2: number, z2: number, n: number, cols: string[], len = 0.22) => {
-    g.save();
-    g.lineCap = 'round';
-    g.lineWidth = Math.max(1, sx * 0.06);
+  /** Grass-blade strokes drawn once into a small tile and reused as a pattern (far cheaper than per-stroke painting). */
+  const bladeTile = (cols: string[], len: number, n: number) => {
+    const T = 256;
+    const tc = document.createElement('canvas');
+    tc.width = T;
+    tc.height = T;
+    const tg = tc.getContext('2d', { willReadFrequently: true })!;
+    tg.lineCap = 'round';
+    tg.lineWidth = Math.max(1, sx * 0.06);
     for (let i = 0; i < n; i++) {
-      const x = px(x1 + r() * (x2 - x1));
-      const y = pz(z1 + r() * (z2 - z1));
+      const x = r() * T;
+      const y = r() * T;
       const a = -Math.PI / 2 + (r() - 0.5) * 0.9;
       const l = (len * 0.5 + r() * len) * sx;
-      g.strokeStyle = cols[Math.floor(r() * cols.length)];
-      g.globalAlpha = 0.45 + r() * 0.4;
-      g.beginPath();
-      g.moveTo(x, y);
-      g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-      g.stroke();
+      tg.strokeStyle = cols[Math.floor(r() * cols.length)];
+      tg.globalAlpha = 0.45 + r() * 0.4;
+      for (const ox of [0, -T, T]) {
+        for (const oy of [0, -T, T]) {
+          if ((ox && (x + ox < -l || x + ox > T + l)) || (oy && (y + oy < -l || y + oy > T + l))) continue;
+          tg.beginPath();
+          tg.moveTo(x + ox, y + oy);
+          tg.lineTo(x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l);
+          tg.stroke();
+        }
+      }
     }
-    g.restore();
+    return g.createPattern(tc, 'repeat')!;
   };
+  const density = (perUnit2: number) => Math.round(perUnit2 * ((256 / sx) * (256 / sx)));
+  const grassPat = bladeTile(['#5c9e2f', '#8fd457', '#a8e26b', '#4d8c27', '#6fb53c'], 0.22, density(mobile ? 6 : 16));
+  const meadowPat = bladeTile(['#4f9a2a', '#9ad85c', '#5fae33'], 0.3, density(40));
+  const strawPat = bladeTile(['#f0d38a', '#b88c42', '#e3c070'], 0.35, density(60));
 
   g.fillStyle = '#76bd41';
   g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 420; i++) {
-    const x = r() * W;
-    const y = r() * H;
-    const rad = (1.2 + r() * 4.5) * sx;
-    const grd = g.createRadialGradient(x, y, 0, x, y, rad);
-    const c = ['98,170,52', '140,206,82', '86,156,44', '160,214,96'][Math.floor(r() * 4)];
-    grd.addColorStop(0, `rgba(${c},0.5)`);
-    grd.addColorStop(1, `rgba(${c},0)`);
-    g.fillStyle = grd;
-    g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-  }
-  blades(ISLAND.minX, ISLAND.minZ, ISLAND.maxX, ISLAND.maxZ, mobile ? 22000 : 60000, ['#5c9e2f', '#8fd457', '#a8e26b', '#4d8c27', '#6fb53c']);
-
-  const rr = (x1: number, z1: number, x2: number, z2: number, rad: number, fill: string, blur = 0) => {
-    g.save();
-    if (blur) {
-      g.shadowColor = fill;
-      g.shadowBlur = blur * (sx / 15);
+  // Low-frequency colour mottling is painted at 1/8 resolution and upscaled.
+  {
+    const lw = Math.ceil(W / 8);
+    const lh = Math.ceil(H / 8);
+    const lc = document.createElement('canvas');
+    lc.width = lw;
+    lc.height = lh;
+    const lg = lc.getContext('2d', { willReadFrequently: true })!;
+    const ls = sx / 8;
+    for (let i = 0; i < 420; i++) {
+      const x = r() * lw;
+      const y = r() * lh;
+      const rad = (1.2 + r() * 4.5) * ls;
+      const grd = lg.createRadialGradient(x, y, 0, x, y, rad);
+      const c = ['98,170,52', '140,206,82', '86,156,44', '160,214,96'][Math.floor(r() * 4)];
+      grd.addColorStop(0, `rgba(${c},0.5)`);
+      grd.addColorStop(1, `rgba(${c},0)`);
+      lg.fillStyle = grd;
+      lg.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
+    g.imageSmoothingEnabled = true;
+    g.drawImage(lc, 0, 0, W, H);
+  }
+  g.fillStyle = grassPat;
+  g.fillRect(0, 0, W, H);
+
+  const rr = (x1: number, z1: number, x2: number, z2: number, rad: number, fill: string | CanvasPattern, blur = 0) => {
+    g.save();
+    void blur;
     g.fillStyle = fill;
     const X = px(Math.min(x1, x2));
     const Y = pz(Math.min(z1, z2));
@@ -166,7 +191,7 @@ function paintGround(mobile: boolean): HTMLCanvasElement {
     g.stroke();
     g.restore();
     const len = Math.hypot(x2 - x1, z2 - z1);
-    const n = Math.round(len * 22);
+    const n = Math.round(len * 12);
     for (let i = 0; i < n; i++) {
       const t0 = r();
       const off = (r() - 0.5) * w * 0.9;
@@ -203,7 +228,7 @@ function paintGround(mobile: boolean): HTMLCanvasElement {
       speckle(f.x - hw, f.z - hd, f.x + hw, f.z + hd, Math.round(hw * hd * 30), ['#5a341b', '#9a6438', '#4a2a14'], 0.05);
     } else if (f.kind === 'grass') {
       rr(f.x - hw, f.z - hd, f.x + hw, f.z + hd, 1.2, '#69b236', 14);
-      blades(f.x - hw, f.z - hd, f.x + hw, f.z + hd, Math.round(hw * hd * 160), ['#4f9a2a', '#9ad85c', '#5fae33'], 0.3);
+      rr(f.x - hw, f.z - hd, f.x + hw, f.z + hd, 1.2, meadowPat);
     } else {
       rr(f.x - hw, f.z - hd, f.x + hw, f.z + hd, 1.5, '#6db63a', 14);
     }
@@ -212,7 +237,7 @@ function paintGround(mobile: boolean): HTMLCanvasElement {
   for (const s of STATIONS) {
     if (s.kind === 'pen') {
       rr(s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2, 0.3, '#c9a35a', 4);
-      blades(s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2, Math.round(s.w * s.d * 60), ['#f0d38a', '#b88c42', '#e3c070'], 0.35);
+      rr(s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2, 0.3, strawPat);
       rr(s.x - s.w / 2, s.z + s.d / 2 + 0.3, s.x + s.w / 2, s.z + s.d / 2 + 2.9, 0.8, '#cf9f62', 8);
     } else {
       rr(s.x - s.w / 2 - 0.2, s.z - s.d / 2 + 0.2, s.x + s.w / 2 + 0.2, s.z + s.d / 2 + 2.9, 0.8, '#cf9f62', 8);
@@ -221,12 +246,20 @@ function paintGround(mobile: boolean): HTMLCanvasElement {
   }
   // Fair plaza
   cobbles(FAIR.x - 4, FAIR.z - 3.5, FAIR.x + 4, FAIR.z + 4.6, '#e9d2a6', '#b39a72', 0.6);
-  // Flowers in the grass
-  const img = g.getImageData(0, 0, W, H).data;
+  // Flowers in the grass: colour lookup on a 1/4-scale copy keeps the readback cheap.
+  const pw = Math.ceil(W / 4);
+  const ph = Math.ceil(H / 4);
+  const small = document.createElement('canvas');
+  small.width = pw;
+  small.height = ph;
+  const sg = small.getContext('2d', { willReadFrequently: true })!;
+  sg.drawImage(cv, 0, 0, pw, ph);
+  const pixels = sg.getImageData(0, 0, pw, ph).data;
+  const img = pixels;
   for (let i = 0; i < (mobile ? 1600 : 3200); i++) {
     const x = r() * W;
     const y = r() * H;
-    const k = (Math.floor(y) * W + Math.floor(x)) * 4;
+    const k = (Math.floor(y / 4) * pw + Math.floor(x / 4)) * 4;
     if (img[k + 1] > 150 && img[k] < 150 && img[k + 2] < 110) {
       g.fillStyle = ['#ffffff', '#ffe066', '#ff9ec7', '#c8a2ff', '#ffffff'][Math.floor(r() * 5)];
       g.globalAlpha = 0.85;
@@ -236,7 +269,7 @@ function paintGround(mobile: boolean): HTMLCanvasElement {
       g.globalAlpha = 1;
     }
   }
-  return cv;
+  return { canvas: cv, pixels, pw, ph };
 }
 
 export function buildWorld(stage: Stage, mobile: boolean): World {
@@ -263,7 +296,8 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   for (let i = 0; i < pos.count; i++) {
     uv.setXY(i, (pos.getX(i) - ISLAND.minX) / IW, 1 - (pos.getZ(i) - ISLAND.minZ) / ID);
   }
-  const groundCanvas = paintGround(mobile);
+  const ground = paintGround(mobile);
+  const groundCanvas = ground.canvas;
   const tex = new THREE.CanvasTexture(groundCanvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
@@ -460,8 +494,7 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   const tuftGeo = plotGeo('tuft');
   const tuftCount = mobile ? 260 : 520;
   const tufts = new THREE.InstancedMesh(tuftGeo, MAT, tuftCount);
-  const gctx = groundCanvas.getContext('2d', { willReadFrequently: true })!;
-  const gdata = gctx.getImageData(0, 0, groundCanvas.width, groundCanvas.height).data;
+  const gdata = ground.pixels;
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const v = new THREE.Vector3();
@@ -470,9 +503,9 @@ export function buildWorld(stage: Stage, mobile: boolean): World {
   for (let i = 0; i < 6000 && tc < tuftCount; i++) {
     const x = ISLAND.minX + 2 + r() * (IW - 4);
     const z = ISLAND.minZ + 2 + r() * (ID - 4);
-    const ix = Math.floor(((x - ISLAND.minX) / IW) * groundCanvas.width);
-    const iz = Math.floor(((z - ISLAND.minZ) / ID) * groundCanvas.height);
-    const k = (iz * groundCanvas.width + ix) * 4;
+    const ix = Math.floor(((x - ISLAND.minX) / IW) * ground.pw);
+    const iz = Math.floor(((z - ISLAND.minZ) / ID) * ground.ph);
+    const k = (iz * ground.pw + ix) * 4;
     const rr = gdata[k];
     const gg = gdata[k + 1];
     const bb = gdata[k + 2];

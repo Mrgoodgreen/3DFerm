@@ -27,9 +27,11 @@ class YandexSDK {
   onResume: (() => void) | null = null;
 
   async init(): Promise<void> {
+    // sdk.js is loaded async from index.html; wait for its load/error event instead of a fixed delay.
+    const state = () => (window as unknown as { __sdkState?: string }).__sdkState;
     const start = Date.now();
-    while (!window.YaGames && Date.now() - start < 1500) {
-      await new Promise((r) => setTimeout(r, 50));
+    while (!window.YaGames && state() === 'loading' && Date.now() - start < 8000) {
+      await new Promise((r) => setTimeout(r, 20));
     }
     if (!window.YaGames) return;
     try {

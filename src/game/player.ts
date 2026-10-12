@@ -203,10 +203,10 @@ export class Pet {
   }
 
   update(dt: number, target: THREE.Vector3, targetRot: number, colliders: Collider[]) {
-    const back = new THREE.Vector3(Math.sin(targetRot + 2.4) * 1.3, 0, Math.cos(targetRot + 2.4) * 1.3);
-    const goal = target.clone().add(back);
-    const dx = goal.x - this.pos.x;
-    const dz = goal.z - this.pos.z;
+    const gx = target.x + Math.sin(targetRot + 2.4) * 1.3;
+    const gz = target.z + Math.cos(targetRot + 2.4) * 1.3;
+    const dx = gx - this.pos.x;
+    const dz = gz - this.pos.z;
     const d = Math.hypot(dx, dz);
     let moving = 0;
     if (d > 0.5) {

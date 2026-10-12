@@ -3,6 +3,7 @@ import { sdk } from './sdk';
 import { setLang, t } from './i18n';
 import { mergeSave } from './state';
 import { Game } from './game/game';
+import { mark } from './prof';
 
 const fill = document.getElementById('loader-fill') as HTMLElement;
 const setProgress = (p: number) => {
@@ -33,9 +34,11 @@ function blockBrowserGestures() {
 }
 
 async function boot() {
+  mark('boot');
   blockBrowserGestures();
   setProgress(10);
   await sdk.init();
+  mark('sdk');
   setLang(sdk.lang());
   document.title = t('title');
   const title = document.getElementById('loader-title');
@@ -44,10 +47,18 @@ async function boot() {
   const save = mergeSave(await sdk.load());
   setProgress(55);
   await nextFrame();
+  mark('save');
   const game = new Game(save, sdk.isMobile());
-  setProgress(85);
-  game.stage.render();
+  mark('game');
+  setProgress(75);
   await nextFrame();
+  await game.warmup();
+  mark('warmup');
+  setProgress(90);
+  game.stage.render();
+  mark('firstRender');
+  await nextFrame();
+  mark('frame2');
   setProgress(100);
   await new Promise((r) => setTimeout(r, 150));
   document.getElementById('loader')?.classList.add('hide');

@@ -277,7 +277,8 @@ export class Station {
     this.soundT -= dt * 0.15;
     if (this.soundT <= 0) {
       this.soundT = 6 + Math.random() * 10;
-      const near = this.ctx.playerPos.distanceTo(new THREE.Vector3(d.x, 0, d.z)) < 9;
+      const pp = this.ctx.playerPos;
+      const near = (pp.x - d.x) ** 2 + (pp.z - d.z) ** 2 < 81;
       if (near && d.animal === 'cow') this.ctx.sound('moo');
       else if (near && d.animal === 'chicken') this.ctx.sound('cluck');
       else if (near && d.animal === 'sheep') this.ctx.sound('baa');

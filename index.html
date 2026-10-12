@@ -10,11 +10,28 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Ферма Арины</title>
     <link rel="icon" href="data:," />
-    <script src="/sdk.js"></script>
+    <style>
+      html,body{margin:0;height:100%;overflow:hidden;background:#f6a95a}
+      #loader{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#fff4d6 0%,#ffd98c 45%,#f6a95a 100%);transition:opacity .5s;font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif}
+      #loader.hide{opacity:0;pointer-events:none}
+      .loader-card{text-align:center}
+      .loader-logo{font-size:80px;animation:lb 2.4s ease-in-out infinite}
+      .loader-title{font-size:38px;font-weight:900;color:#fff;text-shadow:0 3px 0 #c76a1f,0 6px 14px rgba(120,60,10,.4);margin:4px 0 14px}
+      .loader-bar{width:min(70vw,340px);height:18px;background:rgba(255,255,255,.55);border-radius:10px;overflow:hidden;margin:0 auto}
+      .loader-fill{width:5%;height:100%;background:linear-gradient(#8fe07a,#4fb63d);border-radius:10px;transition:width .25s}
+      @keyframes lb{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-12px) rotate(8deg)}}
+    </style>
+    <script>
+      window.__sdkState = 'loading';
+    </script>
+    <script
+      src="/sdk.js"
+      async
+      onload="window.__sdkState = 'loaded'"
+      onerror="window.__sdkState = 'failed'"
+    ></script>
   </head>
   <body>
-    <div id="game"></div>
-    <div id="ui"></div>
     <div id="loader">
       <div class="loader-card">
         <div class="loader-logo">🌻</div>
@@ -22,6 +39,8 @@
         <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
       </div>
     </div>
+    <div id="game"></div>
+    <div id="ui"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

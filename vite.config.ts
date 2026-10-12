@@ -8,6 +8,12 @@ export default defineConfig({
     assetsDir: 'assets',
     assetsInlineLimit: 0,
     sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: { passes: 2, drop_debugger: true },
+      mangle: { properties: false },
+      format: { comments: false },
+    },
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {

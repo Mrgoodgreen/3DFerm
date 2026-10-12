@@ -42,6 +42,7 @@ import { CustomerManager, type CustomerEnv } from './customers';
 import type { GameCtx } from './ctx';
 import { ZoneMarker } from './zone';
 import { Barks } from './barks';
+import { mark } from '../prof';
 import { Input } from '../input';
 import { UI, el } from '../ui/ui';
 import { type SaveData } from '../state';
@@ -133,11 +134,15 @@ export class Game {
     this.labels = new Labels(uiRoot);
     this.ui = new UI(uiRoot);
     this.fx = new Effects(this.stage.scene, this.labels);
+    this.henv.fx = this.fx;
     this.input = new Input(this.stage.renderer.domElement, uiRoot);
     this.input.onFirstInput = () => audio.unlock();
     this.input.setIdleJoystick(mobile);
+    if (mobile) this.shadowEvery = 2;
     window.addEventListener('resize', () => this.input.setIdleJoystick(mobile));
+    mark('stage');
     this.world = buildWorld(this.stage, mobile);
+    mark('world');
 
     this.ctx = {
       scene: this.stage.scene,
@@ -197,8 +202,11 @@ export class Game {
     this.barks = new Barks(this.labels, s.said);
     this.maxLabel.visible = false;
 
+    mark('entities');
     this.restore();
+    mark('restore');
     this.buildPortraits();
+    mark('portraits');
     this.buildButtons();
     this.ui.onModalChange = (open) => (open ? this.pauseAdd('modal') : this.pauseDel('modal'));
     sdk.onPause = () => this.pauseAdd('sdk');
@@ -229,12 +237,31 @@ export class Game {
       { opts: NPC.granny },
       { opts: NPC.fedor },
       { opts: NPC.petya },
-      ...SKINS.map((k) => ({ opts: { ...skinHumanOpts(k), basket: false }, full: true })),
     ];
     const res = renderPortraits(this.stage.renderer, jobs);
     this.portraits = { arina: res[0], granny: res[1], fedor: res[2], petya: res[3] };
     this.ui.setAvatar(res[0]);
-    SKINS.forEach((k, i) => (this.skinPortraits[k.id] = res[4 + i]));
+  }
+
+  /** Wardrobe previews are only needed when the wardrobe is opened. */
+  private ensureSkinPortraits() {
+    if (Object.keys(this.skinPortraits).length) return;
+    const res = renderPortraits(
+      this.stage.renderer,
+      SKINS.map((k) => ({ opts: { ...skinHumanOpts(k), basket: false }, full: true })),
+    );
+    SKINS.forEach((k, i) => (this.skinPortraits[k.id] = res[i]));
+    this.stage.resize();
+  }
+
+  /** Compiles all shaders during loading so the first gameplay frames don't stutter. */
+  async warmup() {
+    const r = this.stage.renderer;
+    try {
+      await Promise.race([r.compileAsync(this.stage.scene, this.stage.camera), new Promise((res) => setTimeout(res, 4000))]);
+    } catch {
+      r.compile(this.stage.scene, this.stage.camera);
+    }
   }
 
   private restore() {
@@ -274,6 +301,7 @@ export class Game {
   }
 
   private rebuildColliders() {
+    this.cenv.shelves = [...this.shelves.values()].filter((x) => x.active);
     const c: Collider[] = [...this.world.colliders];
     for (const st of this.stations.values()) if (st.active) c.push(st.collider);
     for (const sh of this.shelves.values()) if (sh.active) c.push(sh.collider);
@@ -919,14 +947,52 @@ export class Game {
     const dt = Math.min(0.1, raw);
     this.lastFrame = now;
     if (this.pause.has('hidden') || this.pause.has('ad')) return;
-    this.adaptQuality(raw);
+    this.frame++;
     const simPaused = this.pause.size > 0;
+    // Behind a modal the scene is static: redraw at ~20 fps to save battery.
+    if (simPaused && this.frame % 3 !== 0) return;
+    if (!simPaused) this.adaptQuality(raw);
     if (!simPaused) this.update(dt);
     this.world.update(dt, now / 1000);
     this.stage.follow(this.player.pos, dt);
     this.labels.update(this.stage.camera);
+    const sm = this.stage.renderer.shadowMap;
+    if (this.shadowEvery > 1) {
+      sm.autoUpdate = false;
+      if (this.frame % this.shadowEvery === 0) sm.needsUpdate = true;
+    } else sm.autoUpdate = true;
     this.stage.render();
   };
+
+  private frame = 0;
+  private henv: HelperEnv = {
+    fields: this.fields,
+    stations: this.stations,
+    shelves: this.shelves,
+    fx: undefined as unknown as Effects,
+    cap: 4,
+    speed: 3,
+    onDeliver: (to) => {
+      if ('station' in to) this.questEvent('feed', to.station);
+    },
+  };
+  private cenv: CustomerEnv = {
+    shelves: [],
+    interval: 4,
+    maxCustomers: 5,
+    priceFor: (item) => ITEMS[item].price * this.priceMult(),
+    onSale: (shelf, item, coins) => {
+      if (this.s.ch === 0) this.barks.say(this.time, 't_first_sale', { once: true, urgent: true });
+      shelf.addCoins(coins);
+      this.s.stats.sold++;
+      this.ctx.sound('coin', shelf.zone);
+      this.addXP(ITEMS[item].xp);
+      this.questEvent('sell', item);
+    },
+  };
+  private headPos = new THREE.Vector3();
+  /** Shadow map is re-rendered every N frames (2 on phones and weak devices). */
+  private shadowEvery = 1;
 
   private fpsAcc = 0;
   private fpsFrames = 0;
@@ -947,6 +1013,7 @@ export class Game {
     if (this.quality === 1) {
       r.setPixelRatio(Math.min(1, window.devicePixelRatio || 1));
       this.stage.resize();
+      this.shadowEvery = 2;
     } else {
       this.stage.sun.castShadow = false;
       r.shadowMap.enabled = false;
@@ -977,34 +1044,15 @@ export class Game {
     this.updatePads(dt);
     this.updateZoneHints(dt);
 
-    const henv: HelperEnv = {
-      fields: this.fields,
-      stations: this.stations,
-      shelves: this.shelves,
-      fx: this.fx,
-      cap: this.helperCap(),
-      speed: this.helperSpeed(),
-      onDeliver: (to) => {
-        if ('station' in to) this.questEvent('feed', to.station);
-      },
-    };
+    const henv = this.henv;
+    henv.cap = this.helperCap();
+    henv.speed = this.helperSpeed();
     for (const h of this.helpers) h.update(dt, henv);
 
-    const activeShelves = [...this.shelves.values()].filter((x) => x.active);
-    const cenv: CustomerEnv = {
-      shelves: activeShelves,
-      interval: CONFIG.customerInterval / (1 + CONFIG.customerPerLvl * (s.up.customers || 0)) / (1 + 0.22 * (activeShelves.length - 1)),
-      maxCustomers: 3 + activeShelves.length * 2,
-      priceFor: (item) => ITEMS[item].price * this.priceMult(),
-      onSale: (shelf, item, coins) => {
-        if (s.ch === 0) this.barks.say(this.time, 't_first_sale', { once: true, urgent: true });
-        shelf.addCoins(coins);
-        s.stats.sold++;
-        this.ctx.sound('coin', shelf.zone);
-        this.addXP(ITEMS[item].xp);
-        this.questEvent('sell', item);
-      },
-    };
+    const cenv = this.cenv;
+    const nShelves = cenv.shelves.length;
+    cenv.interval = CONFIG.customerInterval / (1 + CONFIG.customerPerLvl * (s.up.customers || 0)) / (1 + 0.22 * (nShelves - 1));
+    cenv.maxCustomers = Math.min(12, 3 + nShelves * 2);
     this.customers.update(dt, cenv);
 
     if (s.up.autocash) {
@@ -1082,7 +1130,7 @@ export class Game {
   /** Arina's remarks: first a step-by-step tutorial, then reactions to what is happening on the farm. */
   private updateBarks(dt: number) {
     const pl = this.player;
-    const head = new THREE.Vector3();
+    const head = this.headPos;
     pl.topWorld(head);
     head.y = Math.max(head.y + (pl.count >= this.capacity() ? 0.95 : 0.45), pl.pos.y + 2.35);
     head.x = pl.pos.x;
@@ -1480,6 +1528,7 @@ export class Game {
   }
 
   openWardrobe() {
+    this.ensureSkinPortraits();
     const grid = el('div', 'skin-grid');
     const render = () => {
       grid.innerHTML = '';
