@@ -97,7 +97,15 @@ export class Player {
     collide(this.pos, 0.38, colliders);
     this.h.root.position.copy(this.pos);
     this.h.root.rotation.y = this.rot;
-    animateHuman(this.h, dt, this.moving, false);
+    // Keep the carried stack on the camera-facing side so it is never hidden behind the head.
+    const anchor = this.h.stackAnchor;
+    const ka = Math.min(1, dt * 8);
+    const cr = Math.cos(this.rot);
+    const sr = Math.sin(this.rot);
+    anchor.position.x += (0.22 * cr - 0.42 * sr - anchor.position.x) * ka;
+    anchor.position.z += (0.22 * sr + 0.42 * cr - anchor.position.z) * ka;
+    anchor.position.y = 0.92;
+    animateHuman(this.h, dt, this.moving, this.stack.length > 0 && cr > 0.25);
 
     this.lean += (this.moving * 0.14 - this.lean) * Math.min(1, dt * 6);
     this.stackRoot.rotation.x = -this.lean;

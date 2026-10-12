@@ -618,8 +618,10 @@ export class Game {
     switch (type) {
       case 'harvest':
         return t('q_harvest', { item: t('item_' + target), n });
-      case 'feed':
-        return t('q_feed', { name: t('st_' + target), n });
+      case 'feed': {
+        const inp = STATIONS.find((x) => x.id === target)?.input;
+        return t('q_feed', { name: t('st_' + target), icon: inp ? ITEMS[inp].icon : '', n });
+      }
       case 'collect':
         return t('q_collect', { item: t('item_' + target), n });
       case 'sell':
